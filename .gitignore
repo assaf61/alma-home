@@ -1,0 +1,8 @@
+# בית עלמא is code-only. No data, ever.
+brief-latest.json
+brief-*.json
+!brief-sample.json
+*.bak
+*.bak-*
+.DS_Store
+Thumbs.db

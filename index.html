@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" class="theme-sky">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>בית עלמא</title>
+  <meta name="theme-color" content="#7BAEC4">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600&family=Cormorant+Garamond:wght@300;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js" defer></script>
+</head>
+<body>
+  <header class="strip">
+    <span class="brand">
+      <img class="brand-mark" src="alma-mark.png" alt="עלמא" decoding="async">
+      <span class="title">בית עלמא</span>
+    </span>
+    <span class="chips">
+      <span id="chip-auth" class="chip clickable">…</span>
+    </span>
+  </header>
+
+  <main class="content">
+    <section id="page-home" class="page active"></section>
+    <section id="page-threads" class="page"></section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-route="home">
+      <svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5L12 3z"/></svg>
+      <span>בית</span>
+    </button>
+    <button class="nav-btn" data-route="threads">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+      <span>חוטים</span>
+    </button>
+    <button class="nav-btn disabled" data-route="soon" disabled title="בקרוב">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 11h-2V7h2v6z"/></svg>
+      <span>מצפה</span>
+    </button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
