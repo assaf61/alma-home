@@ -66,3 +66,40 @@ export async function getDrivePathText(token, fullPath) {
   await checkResponse(res);
   return res.text();
 }
+
+// zi5i: create a calendar event via Graph (POST /me/events). The write happens
+// only on your tap (zero idle egress). Times are local wall-clock with an explicit
+// timeZone so Graph stores them correctly regardless of the device locale.
+// Needs the Calendars.ReadWrite scope (added at the next login). On 403 the caller
+// surfaces a "reconnect to approve calendar access" message.
+export async function createCalendarEvent(token, evt) {
+  const body = {
+    subject: evt.subject || "(ללא כותרת)",
+    start: { dateTime: evt.startDateTime, timeZone: evt.tz || "Asia/Jerusalem" },
+    end: { dateTime: evt.endDateTime, timeZone: evt.tz || "Asia/Jerusalem" },
+  };
+  if (evt.location) body.location = { displayName: evt.location };
+  if (evt.bodyText) body.body = { contentType: "text", content: evt.bodyText };
+  const res = await fetch(`${GRAPH}/me/events`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  await checkResponse(res);
+  return res.json();
+}
+
+// Overwrite (or create) any file by its drive-root-relative path. Used by the
+// questions board to rewrite open-questions.md, append to the archive/log, and
+// distribute an answered question into a vault.
+export async function putDrivePathText(token, fullPath, content) {
+  const blob = new Blob([content], { type: "text/markdown" });
+  const url = `${GRAPH}/me/drive/root:/${encPath(fullPath)}:/content`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+    body: blob,
+  });
+  await checkResponse(res);
+  return res.json();
+}

@@ -30,6 +30,8 @@
   <main class="content">
     <section id="page-home" class="page active"></section>
     <section id="page-threads" class="page"></section>
+    <section id="page-questions" class="page"></section>
+    <section id="page-actions" class="page"></section>
   </main>
 
   <nav class="bottom-nav">
@@ -41,9 +43,13 @@
       <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
       <span>חוטים</span>
     </button>
-    <button class="nav-btn disabled" data-route="soon" disabled title="בקרוב">
-      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 11h-2V7h2v6z"/></svg>
-      <span>מצפה</span>
+    <button class="nav-btn" data-route="questions">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+      <span>שאלות</span>
+    </button>
+    <button class="nav-btn" data-route="actions">
+      <svg viewBox="0 0 24 24"><path d="M3 5h2v2H3V5zm0 6h2v2H3v-2zm0 6h2v2H3v-2zm4-11h14v2H7V6zm0 6h14v2H7v-2zm0 6h14v2H7v-2z"/></svg>
+      <span>משימות</span>
     </button>
   </nav>
 
