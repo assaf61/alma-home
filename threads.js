@@ -13,7 +13,8 @@
 //     locked_vault: <slug>
 //     locked_at: YYYY-MM-DD HH:MM
 //     triage_bucket / priority / timing / domain_tag   (only when set)
-import { listInbox, getFileText, putFileReplace } from "./graph.js";
+import { listInbox, getFileText, putDrivePathText } from "./graph.js";
+import { CONFIG } from "./config.js";
 import { toast } from "./ui.js";
 
 // Valid lock targets - the 9 vault slugs from lock.py (VAULTS). "alma-threads"
@@ -275,21 +276,29 @@ export async function loadThreads(token, container) {
   container.appendChild(mk("p", "hint", "נעילה = ‘החלטתי, בצע, אל תראה לי שוב’. כל מה שמילאת נשמר עם החוט ומתויק אוטומטית בסבב ההפצה (כל 10 דק’)."));
 }
 
+// Single-writer: the lock no longer edits the capture file (that was the second
+// writer that forked it under OneDrive). It drops a unique op file into _ops/, and
+// the worker - the SOLE mutator - applies it on its next cycle. A new uniquely-named
+// file never forks, so locking can no longer corrupt a thread.
 async function doLock(token, v, opts, row, btn) {
   btn.disabled = true; btn.textContent = "נועל…";
   try {
-    const text = await getFileText(token, v.name);
-    const { fm, body } = parseNote(text);
-    if (!fm) { toast("אין frontmatter בקובץ"); btn.disabled = false; btn.textContent = "✓ נעל ותייק"; return; }
-    fmSet(fm, "locked", "true");
-    fmSet(fm, "locked_vault", opts.vault);
-    fmSet(fm, "locked_at", nowStamp());
-    if (opts.bucket) fmSet(fm, "triage_bucket", opts.bucket);
-    if (opts.priority) fmSet(fm, "priority", opts.priority);
-    if (opts.timing) fmSet(fm, "timing", opts.timing);
-    if (opts.tag) fmSet(fm, "domain_tag", opts.tag.replace(/[\r\n]+/g, " "));
-    const newBody = setRemark(body, opts.remark);
-    await putFileReplace(token, v.name, buildNote(fm, newBody));
+    const op = {
+      op: "lock",
+      thread: v.name,
+      id: v.id,
+      vault: opts.vault,
+      bucket: opts.bucket || "",
+      priority: opts.priority || "",
+      timing: opts.timing || "",
+      tag: (opts.tag || "").replace(/[\r\n]+/g, " "),
+      remark: opts.remark || "",
+      at: nowStamp(),
+    };
+    const rand = Math.random().toString(36).slice(2, 8);
+    const stamp = nowStamp().replace(/[^0-9]/g, "");
+    const opPath = `${CONFIG.inboxPath}/_ops/op-${stamp}-${v.id}-${rand}.json`;
+    await putDrivePathText(token, opPath, JSON.stringify(op, null, 2));
     markLocked(row, opts.vault);
     toast("נעול → " + vaultLabel(opts.vault) + " · יתויק בסבב הבא");
   } catch (e) {

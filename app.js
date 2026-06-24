@@ -5,6 +5,7 @@
 import { initAuth, account, signIn, getToken, configured } from "./auth.js";
 import { renderBrief, loadBriefData, loadSampleData } from "./brief.js";
 import { loadThreads, loadThreadsDemo } from "./threads.js";
+import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
@@ -13,6 +14,7 @@ import { CONFIG } from "./config.js";
 
 const pages = {
   home: document.getElementById("page-home"),
+  capture: document.getElementById("page-capture"),
   threads: document.getElementById("page-threads"),
   questions: document.getElementById("page-questions"),
   actions: document.getElementById("page-actions"),
@@ -264,6 +266,13 @@ async function renderHome() {
   });
 }
 
+async function renderCapture() {
+  const c = pages.capture;
+  const token = await getToken();
+  if (token) { loadCapture(token, c); return; }
+  loginGate(c, () => loadCaptureDemo(c));
+}
+
 async function renderThreads() {
   const c = pages.threads;
   c.innerHTML = "<p class='muted pad'>טוען חוטים…</p>";
@@ -293,6 +302,7 @@ async function route() {
   const known = pages[r] ? r : "home";
   showPage(known);
   if (known === "home") await renderHome();
+  else if (known === "capture") await renderCapture();
   else if (known === "threads") await renderThreads();
   else if (known === "questions") await renderQuestions();
   else if (known === "actions") await renderActions();

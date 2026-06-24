@@ -103,3 +103,45 @@ export async function putDrivePathText(token, fullPath, content) {
   await checkResponse(res);
   return res.json();
 }
+
+// --- capture upload (merged collector): create a NEW file in the inbox ----------
+// relPath is inbox-relative (e.g. "2026-...-voice-ab12.md" or "media/...webm").
+// conflictBehavior=rename keeps captures create-only (never overwrites), so a
+// capture can never fork an existing thread. content: string | Blob.
+const SMALL_UPLOAD = 3.5 * 1024 * 1024;
+export async function uploadCapture(token, relPath, content, contentType) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type: contentType || "text/markdown" });
+  if (blob.size > SMALL_UPLOAD) return uploadLarge(token, relPath, blob);
+  const res = await fetch(inboxUrl(relPath, "/content?@microsoft.graph.conflictBehavior=rename"), {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": blob.type || "application/octet-stream" },
+    body: blob,
+  });
+  await checkResponse(res);
+  return res.json();
+}
+
+// Resumable upload session, 5 MB chunks (multiple of 320 KiB per Graph spec).
+async function uploadLarge(token, relPath, blob) {
+  const sessRes = await fetch(inboxUrl(relPath, "/createUploadSession"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename" } }),
+  });
+  await checkResponse(sessRes);
+  const { uploadUrl } = await sessRes.json();
+  const CHUNK = 5 * 1024 * 1024;
+  let pos = 0, lastJson = null;
+  while (pos < blob.size) {
+    const end = Math.min(pos + CHUNK, blob.size);
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Range": `bytes ${pos}-${end - 1}/${blob.size}`, "Content-Length": String(end - pos) },
+      body: blob.slice(pos, end),
+    });
+    await checkResponse(res);
+    if (res.status === 200 || res.status === 201) lastJson = await res.json();
+    pos = end;
+  }
+  return lastJson;
+}
