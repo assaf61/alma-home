@@ -361,3 +361,9 @@ html, body { overflow-x: clip; max-width: 100%; }
 .ltr { overflow-wrap: anywhere; }
 a, .source-url, code { overflow-wrap: anywhere; word-break: break-word; }
 img, audio, video, iframe, svg { max-width: 100%; }
+
+/* ---------- instant triage pills (capture -> triage from memory) ---------- */
+.cap-flbl { font-size: .8rem; font-weight: 600; color: var(--txt-m); margin: 14px 0 6px; }
+.cap-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.cap-pill { padding: 9px 15px; border-radius: var(--r-f); border: 1px solid var(--border); background: var(--surface); color: var(--txt); font: inherit; font-size: .9rem; cursor: pointer; }
+.cap-pill.sel { background: var(--acc); color: #fff; border-color: var(--acc); }
