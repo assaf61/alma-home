@@ -358,6 +358,11 @@ html, body { overflow-x: clip; max-width: 100%; }
 .content, .page, .card, .thr-list, .resume, .strip, .bottom-nav { max-width: 100%; }
 .thr-body, .sum, .thr-head-row .sum, .ri-txt, .ri-src, .dtxt, .facts li, .pulse,
 .cta-card .cta-txt, .brief-head, .disc, .resume-item, p, li, h1, h2, h3 { overflow-wrap: anywhere; }
+/* brief flex rows (agenda .what, numbered-step .b): a flex child keeps its
+   content's intrinsic width unless min-width:0, so a long unbreakable token
+   (map URL / OneDrive inbox file-path) pushed the row past the viewport on the
+   S22 Ultra even with the guard above (s4dq 24/06). Let the cell shrink + wrap. */
+.row .what, .num .b { min-width: 0; overflow-wrap: anywhere; }
 .ltr { overflow-wrap: anywhere; }
 a, .source-url, code { overflow-wrap: anywhere; word-break: break-word; }
 img, audio, video, iframe, svg { max-width: 100%; }

@@ -3,7 +3,7 @@
 // network. No sensitive data is ever cached: the brief and threads are fetched
 // live per session and rendered in memory.
 
-const CACHE = "ah-shell-v16";
+const CACHE = "ah-shell-v17";
 const SHELL = [
   "./", "./index.html", "./app.css", "./tokens.css", "./manifest.webmanifest",
   "./app.js", "./auth.js", "./graph.js", "./config.js", "./queue.js",
