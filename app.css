@@ -350,3 +350,14 @@ details ul li { padding: 3px 0; }
 .cap-rec-timer { font-size: 2rem; font-weight: 300; color: var(--txt-x); font-variant-numeric: tabular-nums; }
 .cap-rec-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--err, #c0392b); animation: cap-pulse 1s infinite; }
 @keyframes cap-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* ---------- responsive guard (geyw + s4dq 24/06: app wobbled left-right on
+   Galaxy S22 Ultra; content was wider than the viewport). clip (not hidden) so
+   the sticky header keeps working; long URLs/strings wrap instead of overflowing. */
+html, body { overflow-x: clip; max-width: 100%; }
+.content, .page, .card, .thr-list, .resume, .strip, .bottom-nav { max-width: 100%; }
+.thr-body, .sum, .thr-head-row .sum, .ri-txt, .ri-src, .dtxt, .facts li, .pulse,
+.cta-card .cta-txt, .brief-head, .disc, .resume-item, p, li, h1, h2, h3 { overflow-wrap: anywhere; }
+.ltr { overflow-wrap: anywhere; }
+a, .source-url, code { overflow-wrap: anywhere; word-break: break-word; }
+img, audio, video, iframe, svg { max-width: 100%; }

@@ -17,13 +17,21 @@ import { listInbox, getFileText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast } from "./ui.js";
 
-// Valid lock targets - the 9 vault slugs from lock.py (VAULTS). "alma-threads"
-// means "leave in inbox". The 16/06 consolidation (all -> Alma.R) is decided but
-// not yet executed on disk, so the live picker still maps to the real folders.
+// Three-dome model (Assaf 24/06: "moving from nine vaults to three"). The old
+// 9 per-domain vaults collapse into ONE private working dome (Alma.R); the domain
+// (health/invest/...) lives on as the domain_tag below, not as a separate vault.
+//   - עלמא · פרטי   = Alma.R, the dome where Assaf works (default, everything connected)
+//   - עדין ועוד · חתום = AdinVeod, sealed, never leaves
+//   - הדום הציבורי   = future/working dome - not connecting with anyone yet, so it is a
+//                      placeholder; a thread sent here still lives in Alma.R for now but is
+//                      STAMPED filed_vault: alma-public so the public set is findable when
+//                      that dome is actually built (distribute.py maps alma-public -> Alma.R).
+//   - השאר ב-inbox  = don't file
 const VAULT_OPTIONS = [
-  ["alma-r", "Alma.R"], ["alma-r-proj", "Alma.R.Proj"], ["alma-health", "Alma.Health"],
-  ["alma-invest", "Alma.Invest"], ["alma-finance", "Alma.Finance"], ["alma-daily", "Alma.Daily"],
-  ["alma-research", "Alma.Research"], ["alma-adinveod", "AdinVeod"], ["alma-threads", "השאר ב-inbox"],
+  ["alma-r", "עלמא · פרטי (כאן אני עובד)"],
+  ["alma-adinveod", "עדין ועוד · חתום"],
+  ["alma-public", "הדום הציבורי · עתידי"],
+  ["alma-threads", "השאר ב-inbox"],
 ];
 // What will be done with the thread (mirrors triage BUCKETS).
 const BUCKETS = [
