@@ -3,7 +3,7 @@
 // network. No sensitive data is ever cached: the brief and threads are fetched
 // live per session and rendered in memory.
 
-const CACHE = "ah-shell-v17";
+const CACHE = "ah-shell-v18";
 const SHELL = [
   "./", "./index.html", "./app.css", "./tokens.css", "./manifest.webmanifest",
   "./app.js", "./auth.js", "./graph.js", "./config.js", "./queue.js",
@@ -34,14 +34,16 @@ self.addEventListener("fetch", (e) => {
   // and Graph (graph.microsoft.com) are cross-origin -> always network.
   if (url.origin !== self.location.origin) return;
 
+  // NETWORK-FIRST for the same-origin shell (fix 30/06). The old cache-first
+  // strategy + register-and-forget froze installed PWAs on stale code, so deploys
+  // never reached the phone (and the pre-responsive CSS kept causing sideways
+  // scroll). Online -> always the latest; offline -> fall back to cache.
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(
-      (hit) =>
-        hit ||
-        fetch(e.request).then((res) => {
-          if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-          return res;
-        })
-    )
+    fetch(e.request)
+      .then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        return res;
+      })
+      .catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
 });

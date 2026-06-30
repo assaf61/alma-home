@@ -320,7 +320,23 @@ function onForeground() {
 
 async function main() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    // Self-update (fix 30/06): register-and-forget left installed PWAs stuck on
+    // cached code (deploys never reached the phone). Now: reload once when a NEW
+    // worker takes control (guarded to first-controlled pages so a first install
+    // doesn't reload), and re-check for a new worker on every foreground.
+    let swReloading = false;
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (swReloading) return;
+        swReloading = true;
+        window.location.reload();
+      });
+    }
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+      const checkUpdate = () => { try { reg.update(); } catch { /* offline */ } };
+      window.addEventListener("focus", checkUpdate);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+    }).catch(() => {});
   }
   await initAuth();
   setAuthChip();

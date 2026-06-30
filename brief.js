@@ -131,6 +131,21 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     app.appendChild(s);
   }
 
+  // upcoming (heads-up: tomorrow + week ahead; all-day items like birthdays/fasts get advance notice)
+  if (d.upcoming && d.upcoming.length) {
+    let s = sec("קרוב · ימים הבאים");
+    d.upcoming.forEach((u) => {
+      const c = mk("div", "card"); const r = mk("div", "row"); const w = mk("div", "when");
+      w.appendChild(isTime(u.when) ? mk("span", "ltr", u.when) : document.createTextNode(u.when || ""));
+      r.appendChild(w);
+      const what = mk("div", "what");
+      if (u.day) what.appendChild(mk("strong", null, u.day + " "));
+      what.appendChild(document.createTextNode(u.what));
+      r.appendChild(what); c.appendChild(r); s.appendChild(c);
+    });
+    app.appendChild(s);
+  }
+
   // threads CTA (replaces the inline triage; routes to the dispatcher page)
   if (d.threads) {
     const n = d.threads.length;
