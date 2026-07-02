@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- Alma enso (zen brush circle), white for dark backgrounds -->
-  <path d="M 85.24 35.77 A 38 38 0 1 0 78.24 75.43" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
-  <path d="M 85.45 43.75 A 36 36 0 1 0 79.49 70.65" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.55"/>
+  <!-- Alma enso (zen brush circle), ink #1c1917 for the pale alma-home background -->
+  <path d="M 85.24 35.77 A 38 38 0 1 0 78.24 75.43" stroke="#1c1917" stroke-width="9" stroke-linecap="round"/>
+  <path d="M 85.45 43.75 A 36 36 0 1 0 79.49 70.65" stroke="#1c1917" stroke-width="4" stroke-linecap="round" opacity="0.55"/>
 </svg>
