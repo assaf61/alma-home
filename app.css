@@ -124,6 +124,15 @@ details ul li { padding: 3px 0; }
 .brief-budget { margin: 10px 0 0; padding: 9px 14px; border-radius: var(--r-m); font-size: .85rem; font-weight: 600; text-align: center; }
 .brief-budget.warn { background: var(--wrn-l); color: var(--wrn-d); }
 .brief-budget.out { background: var(--err-l); color: var(--err-d); }
+/* budget alert (your-control model, 30/06): a slow, unmissable pulse (1.15s — a
+   gentle opacity breathe, NOT a harsh strobe) so the 80% warning grabs attention
+   on the cockpit instead of hiding in a log file. Mirrored as a header chip
+   (.chip.budget) that shows on EVERY tab, so you catch it and top up in time. */
+@keyframes budget-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .38; } }
+.brief-budget.warn, .brief-budget.out { animation: budget-pulse 1.15s ease-in-out infinite; font-weight: 700; }
+.chip.budget { animation: budget-pulse 1.15s ease-in-out infinite; cursor: pointer; font-weight: 600; }
+.chip.budget.warn { background: var(--wrn-l); border-color: var(--wrn); color: var(--wrn-d); }
+.chip.budget.out { background: var(--err-l); border-color: var(--err); color: var(--err-d); }
 
 /* brief -> threads CTA */
 .cta-card { width: 100%; display: flex; align-items: center; gap: 14px; cursor: pointer; text-align: start; font: inherit; }

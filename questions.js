@@ -15,15 +15,16 @@ import { toast, micButton } from "./ui.js";
 const PRIOS = [["p1", "P1 גבוה"], ["p2", "P2 בינוני"], ["p3", "P3 נמוך"]];
 const TIMES = [["now", "עכשיו"], ["soon", "קרוב"], ["later", "מאוחר"], ["someday", "יום אחד"]];
 const DOMAINS = ["בנייה", "בריאות", "השקעות", "כספים", "יומיומי", "מחקר", "מסחור", "תודעה", "כללי"];
+// Vault merge 02/07: one private vault (Alma.R); old vault slugs live on as domain tags.
 const VAULT_DIR = {
-  "alma-r": "Alma.R", "alma-r-proj": "Alma.R.Proj", "alma-health": "Alma.Health",
-  "alma-invest": "Alma.Invest", "alma-finance": "Alma.Finance", "alma-daily": "Alma.Daily",
-  "alma-research": "Alma.Research", "alma-adinveod": "Alma.AdinVeod",
+  "alma-r": "Alma.R", "alma-r-proj": "Alma.R · בנייה", "alma-health": "Alma.R · בריאות",
+  "alma-invest": "Alma.R · השקעות", "alma-finance": "Alma.R · כספים", "alma-daily": "Alma.R · יומיומי",
+  "alma-research": "Alma.R · מחקר", "alma-adinveod": "עדין ועוד · חתום",
 };
 const VAULT_OPTIONS = [
-  ["", "ללא ניתוב · רק נקה"], ["alma-r", "Alma.R"], ["alma-r-proj", "Alma.R.Proj"],
-  ["alma-health", "Alma.Health"], ["alma-invest", "Alma.Invest"], ["alma-finance", "Alma.Finance"],
-  ["alma-daily", "Alma.Daily"], ["alma-research", "Alma.Research"], ["alma-adinveod", "AdinVeod"],
+  ["", "ללא ניתוב · רק נקה"], ["alma-r", "Alma.R (פרטי)"], ["alma-r-proj", "Alma.R · בנייה"],
+  ["alma-health", "Alma.R · בריאות"], ["alma-invest", "Alma.R · השקעות"], ["alma-finance", "Alma.R · כספים"],
+  ["alma-daily", "Alma.R · יומיומי"], ["alma-research", "Alma.R · מחקר"], ["alma-adinveod", "עדין ועוד · חתום"],
 ];
 const MARKER_Q = "<!-- שאלות פתוחות חדשות - הוסף מתחת לשורה הזו -->";
 

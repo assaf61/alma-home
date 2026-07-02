@@ -125,6 +125,26 @@ function paintCounts(c) {
     if (!d) { d = mk("span", "nav-dot"); home.appendChild(d); }
     d.hidden = !c.briefNew;
   }
+
+  // budget alert (your-control model 30/06): blink a chip in the header on EVERY
+  // tab at 80% / when credit is out, so you catch it and top up before the body
+  // freezes. Click jumps home to the full banner. Hidden again once back under 80%.
+  const chips = document.querySelector(".strip .chips");
+  if (chips) {
+    let bchip = document.getElementById("chip-budget");
+    if (c.creditLow || c.budgetWarn) {
+      if (!bchip) {
+        bchip = mk("span", "chip budget"); bchip.id = "chip-budget";
+        bchip.addEventListener("click", () => { location.hash = "#home"; });
+        chips.insertBefore(bchip, chips.firstChild);
+      }
+      bchip.className = "chip budget " + (c.creditLow ? "out" : "warn");
+      bchip.textContent = c.creditLow ? "⚠ קרדיט אזל" : ("⚠ תקציב " + (c.budgetPct != null ? c.budgetPct + "%" : "80%"));
+      bchip.hidden = false;
+    } else if (bchip) {
+      bchip.hidden = true;
+    }
+  }
 }
 
 async function loadCounts(token) {
@@ -136,7 +156,7 @@ async function loadCounts(token) {
   ]);
   try { c.questions = countOpenQuestions(qText || ""); } catch { c.questions = 0; }
   try { c.actions = countWaitingActions(aText || ""); } catch { c.actions = 0; }
-  if (bText) { try { const d = JSON.parse(bText); c.briefNew = !!d.date && d.date !== localStorage.getItem(BRIEF_SEEN_KEY); } catch { /* ignore */ } }
+  if (bText) { try { const d = JSON.parse(bText); c.briefNew = !!d.date && d.date !== localStorage.getItem(BRIEF_SEEN_KEY); c.creditLow = !!d.credit_low; c.budgetWarn = !!d.budget_warn; c.budgetPct = (d.budget && d.budget.pct != null) ? d.budget.pct : null; } catch { /* ignore */ } }
   try {
     const items = await listInbox(token, 50);
     c.threads = items.filter((it) => it.file && /\.md$/i.test(it.name) && it.name !== "commercial-threads.md").length;
