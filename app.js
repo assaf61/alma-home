@@ -18,6 +18,7 @@ const pages = {
   threads: document.getElementById("page-threads"),
   questions: document.getElementById("page-questions"),
   actions: document.getElementById("page-actions"),
+  distribute: document.getElementById("page-distribute"),
 };
 
 const HS = { questions: "שאלות פתוחות", actions: "ממתין לך", threads: "חוטים" };
@@ -54,7 +55,7 @@ function loginGate(container, onDemo) {
   container.appendChild(gate);
 }
 
-async function gotoThreads() { location.hash = "#threads"; }
+async function gotoThreads() { location.hash = "#distribute"; }
 
 // jbwv (ב): on-demand narrative refresh. Writes a flag to OneDrive; the local PC
 // watcher runs the brief daemon (~1-3 min, pay-per-use) and writes a fresh body.
@@ -93,7 +94,7 @@ function statusStrip() {
     const chip = mk("button", "hs-chip"); chip.type = "button"; chip.dataset.r = r;
     chip.appendChild(mk("span", "hs-n", "·"));
     chip.appendChild(mk("span", "hs-l", HS[r]));
-    chip.addEventListener("click", () => { location.hash = "#" + r; });
+    chip.addEventListener("click", () => { location.hash = "#distribute"; });
     s.appendChild(chip);
   });
   return s;
@@ -110,9 +111,7 @@ function setBadge(route, n) {
 
 function paintCounts(c) {
   if (!c) return;
-  setBadge("questions", c.questions);
-  setBadge("actions", c.actions);
-  setBadge("threads", c.threads);
+  setBadge("distribute", (c.questions || 0) + (c.actions || 0) + (c.threads || 0));
   document.querySelectorAll(".home-status .hs-chip").forEach((chip) => {
     const n = c[chip.dataset.r];
     const el = chip.querySelector(".hs-n");
@@ -204,7 +203,7 @@ function resumeRow(item, kind) {
     row.addEventListener("click", () => copyTrigger(item.text));
   } else {
     row.appendChild(mk("span", "ri-arrow", "←"));
-    row.addEventListener("click", () => { location.hash = kind === "question" ? "#questions" : "#actions"; });
+    row.addEventListener("click", () => { location.hash = "#distribute"; });
   }
   return row;
 }
@@ -223,7 +222,7 @@ function resumeCard(acts, qs) {
   card.appendChild(list);
   if (total > MAXN) {
     const more = mk("button", "btn-ghost", `ועוד ${total - MAXN}… ראה הכל`);
-    more.addEventListener("click", () => { location.hash = acts.length >= qs.length ? "#actions" : "#questions"; });
+    more.addEventListener("click", () => { location.hash = "#distribute"; });
     card.appendChild(more);
   }
   return card;
@@ -317,12 +316,30 @@ async function renderActions() {
   loginGate(c, () => loadActionsDemo(c));
 }
 
+// The distributor (Assaf 04/07): the three tabs become one button that shows what
+// the catcher catches - threads + questions + actions unified in one page.
+async function fillDistribute(c, token) {
+  c.innerHTML = "";
+  const boxes = [];
+  for (let i = 0; i < 3; i++) { const b = mk("div", "dist-sec"); c.appendChild(b); boxes.push(b); }
+  if (token) { await loadThreads(token, boxes[0]); await loadQuestions(token, boxes[1]); await loadActions(token, boxes[2]); }
+  else { loadThreadsDemo(boxes[0]); loadQuestionsDemo(boxes[1]); loadActionsDemo(boxes[2]); }
+}
+async function renderDistribute() {
+  const c = pages.distribute;
+  c.innerHTML = "<p class='muted pad'>טוען…</p>";
+  const token = await getToken();
+  if (token) { await fillDistribute(c, token); return; }
+  loginGate(c, () => fillDistribute(c, null));
+}
+
 async function route() {
   const r = (location.hash || "#home").replace("#", "");
   const known = pages[r] ? r : "home";
   showPage(known);
   if (known === "home") await renderHome();
   else if (known === "capture") await renderCapture();
+  else if (known === "distribute") await renderDistribute();
   else if (known === "threads") await renderThreads();
   else if (known === "questions") await renderQuestions();
   else if (known === "actions") await renderActions();

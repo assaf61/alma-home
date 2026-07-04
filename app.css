@@ -33,6 +33,7 @@ body {
 }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark { height: 30px; width: auto; display: block; mix-blend-mode: multiply; }
+.dist-sec + .dist-sec { margin-top: 24px; }
 .brand .title { font-weight: 600; font-size: 1.05rem; color: var(--txt-x); }
 .chips { display: flex; gap: 8px; }
 .chip {

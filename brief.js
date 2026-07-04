@@ -65,7 +65,6 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   if (d.date) g.appendChild(mk("p", "muted", d.date));
   if (d.pulse) { const pulse = mk("div", "pulse"); d.pulse.forEach((p) => pulse.appendChild(mk("span", null, p))); g.appendChild(pulse); }
   head.appendChild(g);
-  const img = mk("img"); img.src = LOGO; img.alt = "עלמא"; head.appendChild(img);
   app.appendChild(head);
 
   if (demo) {
