@@ -15,7 +15,7 @@
 //     triage_bucket / priority / timing / domain_tag   (only when set)
 import { listInbox, getFileText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
-import { toast } from "./ui.js";
+import { toast, onTap } from "./ui.js";
 
 // Three-dome model (Assaf 24/06: "moving from nine vaults to three"). The old
 // 9 per-domain vaults collapse into ONE private working dome (Alma.R); the domain
@@ -222,7 +222,7 @@ function renderRow(v, onLock) {
   }, row, btn));
   form.appendChild(btn);
 
-  head.addEventListener("click", () => {
+  onTap(head, () => {
     const open = form.classList.toggle("open");
     chev.textContent = open ? "▴" : "▾";
   });

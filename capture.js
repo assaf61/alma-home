@@ -73,16 +73,42 @@ function openSheet(state) {
   sheet.appendChild(mk("div", "cap-sheet-title",
     { text: "כתוב", voice: "הערה להקלטה", photo: "תמונה", link: "לינק" }[state.kind] || "לכידה"));
 
-  // media preview
-  if (state.blob && (state.type || "").startsWith("image/")) {
-    const img = mk("img", "cap-prev-img"); img.src = URL.createObjectURL(state.blob); sheet.appendChild(img);
-  } else if (state.blob && (state.type || "").startsWith("audio/")) {
-    const au = mk("audio", "cap-prev-audio"); au.controls = true; au.src = URL.createObjectURL(state.blob); sheet.appendChild(au);
+  // media preview (a container so an attached photo can render without reopening the sheet)
+  const prev = mk("div", "cap-prev"); sheet.appendChild(prev);
+  function renderPrev() {
+    prev.innerHTML = "";
+    if (state.blob && (state.type || "").startsWith("image/")) {
+      const img = mk("img", "cap-prev-img"); img.src = URL.createObjectURL(state.blob); prev.appendChild(img);
+    } else if (state.blob && (state.type || "").startsWith("audio/")) {
+      const au = mk("audio", "cap-prev-audio"); au.controls = true; au.src = URL.createObjectURL(state.blob); prev.appendChild(au);
+    }
   }
+  renderPrev();
 
   const ta = mk("textarea", "cap-ta"); ta.id = "cap-ta";
   ta.placeholder = isLink ? "הדבק קישור כאן…" : "כתוב או הוסף הערה…";
+  if (state.text) ta.value = state.text;
   sheet.appendChild(ta);
+
+  // Attach a photo to THIS capture (8wnc: מיקום/טקסט + הודעה + תמונה בקצה-חוט אחד).
+  // The save layer already carries text+media together, so this is only a connection.
+  // Hidden on a voice capture, where a photo would clobber the audio (one media per note).
+  if (!(state.blob && (state.type || "").startsWith("audio/"))) {
+    const attachRow = mk("div", "cap-attach");
+    const attachBtn = mk("button", "btn-ghost", "צרף תמונה"); attachBtn.type = "button";
+    const fileIn = mk("input"); fileIn.type = "file"; fileIn.accept = "image/*"; fileIn.hidden = true;
+    attachBtn.addEventListener("click", () => fileIn.click());
+    fileIn.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      state.blob = f; state.type = f.type; state.fileName = f.name;
+      if (state.kind === "text" || state.kind === "link") state.kind = "photo";
+      attachBtn.textContent = "תמונה צורפה ✓";
+      renderPrev();
+    });
+    attachRow.appendChild(attachBtn); attachRow.appendChild(fileIn);
+    sheet.appendChild(attachRow);
+  }
 
   const row = mk("div", "cap-sheet-row");
   const send = mk("button", "btn-primary", "שלח ✓"); send.type = "button";
@@ -97,6 +123,25 @@ function openSheet(state) {
   if (!state.blob) setTimeout(() => ta.focus(), 50);
 }
 function closeSheet() { removeOverlay("cap-sheet-wrap"); }
+
+// ---------- location capture (8wnc): position + message + optional photo ----------
+function captureLocation() {
+  if (demoMode) {
+    openSheet({ kind: "text", text: "📍 מיקום: 31.766, 35.200 (הדגמה)\nhttps://maps.google.com/?q=31.766,35.200\n\n" });
+    return;
+  }
+  if (!navigator.geolocation) { toast("מיקום לא נתמך במכשיר"); return; }
+  toast("מאתר מיקום…");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const lat = latitude.toFixed(6), lng = longitude.toFixed(6);
+      openSheet({ kind: "text", text: `📍 מיקום: ${lat}, ${lng} (±${Math.round(accuracy)} מ׳)\nhttps://maps.google.com/?q=${lat},${lng}\n\n` });
+    },
+    () => toast("אין גישה למיקום"),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
 
 async function sendCapture(state, ta) {
   let text = (ta.value || "").trim();
@@ -255,6 +300,7 @@ export function loadCapture(token, container, opts = {}) {
     ["✍️", "כתוב", () => openSheet({ kind: "text" })],
     ["🎤", "הקלט", () => startRec()],
     ["📷", "צלם", () => pickPhoto()],
+    ["📍", "מיקום", () => captureLocation()],
     ["🔗", "לינק", () => openSheet({ kind: "link" })],
   ];
   actions.forEach(([ico, label, fn]) => {

@@ -13,6 +13,20 @@ export function toast(msg, ms = 2600) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
 }
 
+// ---------- tap-vs-scroll guard (px64) ----------
+// A row header used to open on any click, so on the phone a scroll gesture that
+// started on a header registered as a tap and popped open the wrong thread. onTap
+// fires only when the pointer barely moved between down and up (a real tap); a drag
+// (scroll) is ignored. Keyboard activation (Enter/Space) is preserved for a11y.
+export function onTap(el, handler, moveTol = 10) {
+  let sx = 0, sy = 0, moved = false, down = false;
+  el.addEventListener("pointerdown", (e) => { down = true; moved = false; sx = e.clientX; sy = e.clientY; });
+  el.addEventListener("pointermove", (e) => { if (down && (Math.abs(e.clientX - sx) > moveTol || Math.abs(e.clientY - sy) > moveTol)) moved = true; });
+  el.addEventListener("pointerup", (e) => { const tap = down && !moved; down = false; if (tap) handler(e); });
+  el.addEventListener("pointercancel", () => { down = false; moved = false; });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handler(e); } });
+}
+
 // ---------- read-aloud (Hebrew TTS) - matches Assaf's "הקרא לי" preference ----------
 let speaking = false;
 export function speak(txt) {

@@ -10,7 +10,7 @@
 // add them manually here.
 import { getDrivePathText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
-import { toast, micButton } from "./ui.js";
+import { toast, micButton, onTap } from "./ui.js";
 
 const PRIOS = [["p1", "P1 גבוה"], ["p2", "P2 בינוני"], ["p3", "P3 נמוך"]];
 const TIMES = [["now", "עכשיו"], ["soon", "קרוב"], ["later", "מאוחר"], ["someday", "יום אחד"]];
@@ -216,7 +216,7 @@ function renderQ(q, h) {
   manage.appendChild(editB); manage.appendChild(delB);
   form.appendChild(manage);
 
-  head.addEventListener("click", () => { const open = form.classList.toggle("open"); chev.textContent = open ? "▴" : "▾"; });
+  onTap(head, () => { const open = form.classList.toggle("open"); chev.textContent = open ? "▴" : "▾"; });
   row.appendChild(form);
   return row;
 }
