@@ -8,13 +8,30 @@
 import { CONFIG } from "./config.js";
 import { getDrivePathText } from "./graph.js";
 
-const LOGO = "./alma-mark.png";
+const LOGO = "./alma-enso.jpg";
 
 function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 function listOf(arr) { const u = document.createElement("ul"); arr.forEach((x) => u.appendChild(mk("li", null, x))); return u; }
 function detail(label, node) { const d = document.createElement("details"); d.appendChild(mk("summary", null, label)); d.appendChild(node); return d; }
 function sec(over) { const s = mk("section"); const h = mk("div", "shead"); h.appendChild(mk("span", "over", over)); h.appendChild(mk("span", "line")); s.appendChild(h); return s; }
 function isTime(s) { return /[0-9].*[:–-]/.test(s); }
+
+// minimal block markdown for weekend editions: headings, bullets, paragraphs.
+// Mirrors mdInto() in brief-template.html so both surfaces read the same.
+function mdInto(root, md) {
+  let list = null;
+  String(md).split(/\r?\n/).forEach((line) => {
+    const t = line.trim();
+    if (!t) { list = null; return; }
+    const h = t.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { list = null; root.appendChild(mk(h[1].length <= 2 ? "h2" : "h3", "ed-h", h[2])); return; }
+    if (/^[-*]\s+/.test(t)) {
+      if (!list) { list = mk("ul", "ed-l"); root.appendChild(list); }
+      list.appendChild(mk("li", null, t.replace(/^[-*]\s+/, ""))); return;
+    }
+    list = null; root.appendChild(mk("p", "ed-p", t));
+  });
+}
 
 // jbwv (חלק א): ברכה לפי שעת היום, מחושבת בכל פתיחה. לוגיקת תצוגה טהורה, בלי LLM, אפס עלות.
 // מתרעננת אוטומטית עם renderHome בכל חזרה לפורגראונד (ry37), כך שהברכה תמיד תואמת לשעה.
@@ -158,8 +175,21 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     app.appendChild(s);
   }
 
+  // weekend edition (spec 13/07): REPLACES the weekday body, the skeleton stays.
+  // 17/07: this surface never knew the field, so every Friday/Saturday it served
+  // Thursday's fronts/spotlight/cards and dropped the edition on the floor.
+  const hasEdition = !!(d.edition && d.edition.md);
+  if (hasEdition) {
+    let s = sec(d.edition.title || "מהדורת סוף-שבוע");
+    const c = mk("div", "card");
+    mdInto(c, d.edition.md);
+    s.appendChild(c);
+    s.appendChild(mk("p", "hint", "מהדורת צופים · " + (d.edition.file || "")));
+    app.appendChild(s);
+  }
+
   // fronts
-  if (d.fronts && d.fronts.length) {
+  if (!hasEdition && d.fronts && d.fronts.length) {
     let s = sec("איפה אנחנו · מה פתוח");
     const fc = mk("div", "card");
     d.fronts.forEach((f) => {
@@ -177,7 +207,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   }
 
   // spotlight
-  if (d.spotlight && d.spotlight.length) {
+  if (!hasEdition && d.spotlight && d.spotlight.length) {
     let s = sec("דחוף · זרקור");
     d.spotlight.forEach((sp) => {
       const c = mk("div", "card"); c.style.borderInlineStart = "3px solid var(--" + sp.tone + ")";
@@ -187,7 +217,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   }
 
   // drill-down cards
-  if (d.cards && d.cards.length) {
+  if (!hasEdition && d.cards && d.cards.length) {
     let s = sec("פירוט · drill-down");
     d.cards.forEach((o) => {
       const c = mk("div", "card"); c.appendChild(mk("h2", null, o.title)); c.appendChild(mk("div", "phead", o.head));
@@ -212,8 +242,8 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     c.appendChild(box); s.appendChild(c); app.appendChild(s);
   }
 
-  // do / dont
-  if (d.doList || d.dontList) {
+  // do / dont (weekday body; hidden on edition days)
+  if (!hasEdition && (d.doList || d.dontList)) {
     let s = sec("מה כדאי · מה לא כדאי היום");
     const dd = mk("div", "dd");
     const doCol = mk("div", "col do"); doCol.appendChild(mk("h3", null, "כדאי"));
