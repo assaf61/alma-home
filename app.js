@@ -8,7 +8,7 @@ import { loadThreads, loadThreadsDemo } from "./threads.js";
 import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
-import { renderLocalReach, loadEngineBoard, loadEngineBoardDemo } from "./engine.js";
+import { renderLocalReach, loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo } from "./engine.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -366,15 +366,24 @@ async function renderDistribute() {
 // 19/07: חדר-המכונות בכיס - גרסה 2: הלוח וההכרעות עוברים דרך הענן (OneDrive/Graph,
 // אותו צינור מאובטח של הלכידה), בלי שום חשיפת-רשת של השרת המקומי. "המכונה בהישג
 // יד" (הבדיקה המקומית, v1) נשארה כרכיב עצמאי בראש העמוד - ראה engine.js.
+// גשר-הענן השני (19/07): מעבר-עיניים מתחת ללוח, אותו דפוס. שער-ההתחברות מוצג פעם
+// אחת בתוך הלוח (כמו קודם); כשאין טוקן, מעבר-העיניים עובר ישר להדגמה - בלי שער
+// כפול - בדיוק כמו שהמפיץ מציג הדגמה לשלושת הקופסאות שלו בלי לשער כל אחת בנפרד.
 async function renderEngine() {
   const c = pages.engine;
   c.innerHTML = "";
   const local = mk("div"); c.appendChild(local);
   await renderLocalReach(local);
   const board = mk("div"); board.innerHTML = "<p class='muted pad'>טוען לוח…</p>"; c.appendChild(board);
+  const eyes = mk("div"); eyes.innerHTML = "<p class='muted pad'>טוען מעבר-עיניים…</p>"; c.appendChild(eyes);
   const token = await getToken();
-  if (token) { await loadEngineBoard(token, board); return; }
+  if (token) {
+    await loadEngineBoard(token, board);
+    await loadEyesPass(token, eyes);
+    return;
+  }
   loginGate(board, () => loadEngineBoardDemo(board));
+  loadEyesPassDemo(eyes);
 }
 
 async function route() {

@@ -40,4 +40,9 @@ export const CONFIG = {
   // וההכרעות שחוזרות מהנייד - קובץ חדש לכל הכרעה (כמו הלכידה), לעולם לא דורס.
   engineBoardPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/engine-board.json",
   engineInboxPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/inbox",
+
+  // גשר-הענן השני של גרסת-הכיס (19/07): מעבר-עיניים - המנצח מפרסם eyes-pass.json,
+  // הפסיקות מהנייד חוזרות כקובץ חדש לכל פסיקה לאותה תיקיית inbox (eyes-*.json
+  // לצד decide-*.json, בלי להתנגש).
+  eyesPassPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/eyes-pass.json",
 };

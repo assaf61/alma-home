@@ -316,3 +316,187 @@ const DEMO_BOARD = {
 export function loadEngineBoardDemo(container) {
   renderBoard(container, DEMO_BOARD, null, { demo: true });
 }
+
+// ---------- מעבר-עיניים (טלפון, 19/07 - גשר-הענן השני) ----------
+// אותו דפוס בדיוק כמו הלוח למעלה: קורא eyes-pass.json שהמנצח מפרסם, כותב קובץ
+// חדש לכל פסיקה לאותה תיקיית inbox (CONFIG.engineInboxPath) - שם קובץ eyes-*.json
+// כדי לא להתנגש עם decide-*.json של הלוח. פסיקה כאן היא טקסט חופשי, לא כן/לא.
+const EYES_DECIDED_KEY = "eyes-decided";    // { [id]: {verdict, at} } - עד שהפריט מסומן decided בענן או נעלם
+const EYES_DRAFT_KEY = "eyes-note-draft";   // { [id]: text } - טיוטת פסיקה, נמחקת אחרי שליחה מוצלחת
+
+function clearEyesDraft(id) {
+  const m = readJSON(EYES_DRAFT_KEY, {});
+  if (id in m) { delete m[id]; writeJSON(EYES_DRAFT_KEY, m); }
+}
+
+function markEyesDecidedUI(row, verdict, fromCloud, demo) {
+  const ta = row.querySelector("textarea"); if (ta) ta.remove();
+  const micRow = row.querySelector(".rec-row"); if (micRow) micRow.remove();
+  const send = row.querySelector(".commit"); if (send) send.remove();
+  const label = (demo ? "מצב הדגמה · " : "") + "נפסק: " + verdict + (fromCloud || demo ? "" : " · ממתין לעדכון");
+  row.appendChild(mk("span", "locked-tag", label));
+}
+
+async function submitEyesVerdict(it, ta, token, row, btn) {
+  const verdict = (ta.value || "").trim();
+  if (!verdict) { toast("כתוב פסיקה לפני שליחה"); return; }
+  btn.disabled = true;
+
+  const at = new Date().toISOString();
+  const payload = { kind: "eyes-verdict", id: it.id, verdict, at, src: "phone" };
+  const fname = `eyes-${Date.now()}-${it.id}.json`;
+  try {
+    await putDrivePathText(token, `${CONFIG.engineInboxPath}/${fname}`, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    btn.disabled = false;
+    toast("שליחת הפסיקה נכשלה · " + friendlyErr(e));
+    return;
+  }
+
+  const decided = readJSON(EYES_DECIDED_KEY, {});
+  decided[it.id] = { verdict, at };
+  writeJSON(EYES_DECIDED_KEY, decided);
+  clearEyesDraft(it.id);
+
+  markEyesDecidedUI(row, verdict, false, false);
+  toast("נשלח: " + verdict);
+}
+
+function renderEyesItem(it, ctx) {
+  const row = mk("div", "thr");
+  const already = it.decided || ctx.decided[it.id];
+
+  const head = mk("div", "thr-head-row"); head.style.cursor = "default";
+  const label = (it.n != null ? it.n + ". " : "") + (it.title || "(ללא כותרת)");
+  head.appendChild(mk("span", "sum", label));
+  row.appendChild(head);
+
+  if (it.decide) row.appendChild(mk("div", "thr-body", it.decide));
+
+  if (already) {
+    const fromCloud = !!it.decided;
+    const tag = "נפסק: " + (already.verdict || "")
+      + (already.at ? " · " + fmtStamp(already.at, "").trim() : "")
+      + (fromCloud ? "" : " · ממתין לעדכון");
+    row.appendChild(mk("span", "locked-tag", tag));
+    return row;
+  }
+
+  if (it.prefillNote) row.appendChild(mk("div", "thr-body eng-rec", it.prefillNote));
+
+  // אותו דפוס טופס כמו בלוח למעלה: שדה שגדל עם התוכן + טיוטה נשמרת ל-localStorage
+  // תוך כדי הקלדה, עם ה-prefill כברירת מחדל (טיוטה קיימת גוברת עליו).
+  const ta = mk("textarea", "ta-remark ta-grow"); ta.placeholder = "הפסיקה שלך…"; ta.rows = 1;
+  const drafts0 = readJSON(EYES_DRAFT_KEY, {});
+  ta.value = (it.id in drafts0) ? drafts0[it.id] : (it.prefill || "");
+  ta.addEventListener("input", () => {
+    autoGrow(ta);
+    const m = readJSON(EYES_DRAFT_KEY, {});
+    if (ta.value.trim()) m[it.id] = ta.value; else delete m[it.id];
+    writeJSON(EYES_DRAFT_KEY, m);
+  });
+  row.appendChild(ta);
+  setTimeout(() => autoGrow(ta), 0);   // גובה נכון גם כשיש טיוטה/prefill שמולאו מראש
+
+  const micRow = mk("div", "rec-row"); micRow.appendChild(micButton(ta)); row.appendChild(micRow);
+
+  const send = mk("button", "commit", "שלח פסיקה"); send.type = "button";
+  send.addEventListener("click", () => {
+    if (ctx.demo) {
+      const verdict = (ta.value || "").trim();
+      if (!verdict) { toast("כתוב פסיקה לפני שליחה"); return; }
+      clearEyesDraft(it.id);
+      markEyesDecidedUI(row, verdict, false, true);
+      toast("מצב הדגמה · נשלח: " + verdict);
+      return;
+    }
+    submitEyesVerdict(it, ta, ctx.token, row, send);
+  });
+  row.appendChild(send);
+
+  return row;
+}
+
+function renderEyes(container, data, token, opts) {
+  const demo = !!opts.demo;
+  container.innerHTML = "";
+  const items = data.items || [];
+
+  // פריט שהוכרע מקומית מסומן עד שהוא מסומן decided בענן או נעלם מהרשימה.
+  const decided = readJSON(EYES_DECIDED_KEY, {});
+  if (!demo) {
+    const openIds = new Set(items.filter((it) => !it.decided).map((it) => it.id));
+    let changed = false;
+    Object.keys(decided).forEach((id) => { if (!openIds.has(id)) { delete decided[id]; changed = true; } });
+    if (changed) writeJSON(EYES_DECIDED_KEY, decided);
+  }
+
+  const sh = mk("div", "shead");
+  sh.appendChild(mk("span", "over", "מעבר-עיניים"));
+  sh.appendChild(mk("span", "line"));
+  sh.appendChild(mk("span", "thr-count", items.length ? String(items.length) : "✓"));
+  container.appendChild(sh);
+  if (data.updatedAt) container.appendChild(mk("p", "eng-scan", fmtStamp(data.updatedAt)));
+
+  if (!items.length) {
+    container.appendChild(mk("div", "card empty", "אין פסיקות ממתינות במעבר-העיניים כרגע. ✓"));
+  } else {
+    const list = mk("div", "thr-list");
+    items.forEach((it) => {
+      try { list.appendChild(renderEyesItem(it, { token, demo, decided })); }
+      catch (e) { list.appendChild(mk("div", "thr err-msg", "פריט לא תקין במעבר-העיניים: " + (e.message || ""))); }
+    });
+    container.appendChild(list);
+    container.appendChild(mk("p", "hint", "הפסיקה נשלחת כטקסט חופשי, בלי כן/לא · המכונה תפרש אותה בהמשך."));
+  }
+
+  if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה - שינויים מקומיים בלבד, ללא כתיבה ל-OneDrive."));
+}
+
+// ---------- live ----------
+export async function loadEyesPass(token, container) {
+  container.innerHTML = "";
+  container.appendChild(mk("p", "muted pad", "טוען מעבר-עיניים…"));
+
+  let raw;
+  try {
+    raw = await getDrivePathText(token, CONFIG.eyesPassPath);
+  } catch (e) {
+    container.innerHTML = "";
+    container.appendChild(mk("p", "err-msg pad", "שגיאת טעינת מעבר-העיניים: " + friendlyErr(e)));
+    return;
+  }
+
+  if (raw == null) {
+    container.innerHTML = "";
+    container.appendChild(mk("div", "card empty", "מעבר-העיניים יופיע כשהמכונה תפרסם."));
+    return;
+  }
+
+  let data;
+  try { data = JSON.parse(raw); }
+  catch (e) {
+    container.innerHTML = "";
+    container.appendChild(mk("p", "err-msg pad", "מעבר-העיניים שהתקבל מהענן אינו תקין (JSON שבור): " + (e.message || "")));
+    return;
+  }
+
+  renderEyes(container, data, token, { demo: false });
+}
+
+// ---------- demo (no auth) ----------
+const DEMO_EYES = {
+  updatedAt: new Date().toISOString(),
+  items: [
+    { id: "demo-eyes-1", n: 1, title: "לפרסם את הפוסט על הריל של אינסטגרם?",
+      decide: "לפרסם כמו שהוא, לערוך, או לדחות?",
+      prefill: "לפרסם כמו שהוא", prefillNote: "מומלץ: לפרסם כמו שהוא - הטון תואם.",
+      decided: null },
+    { id: "demo-eyes-2", n: 2, title: "לאשר את נוסח ההודעה לגליל?",
+      decide: "לאשר, לתקן, או לדחות?", prefill: "", prefillNote: "",
+      decided: { verdict: "אושר עם תיקון קל בפתיח", at: new Date(Date.now() - 3600000).toISOString() } },
+  ],
+};
+export function loadEyesPassDemo(container) {
+  renderEyes(container, DEMO_EYES, null, { demo: true });
+}
