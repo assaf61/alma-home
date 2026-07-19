@@ -8,7 +8,7 @@ import { loadThreads, loadThreadsDemo } from "./threads.js";
 import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
-import { renderLocalReach, loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo } from "./engine.js";
+import { renderLocalReach, loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo, loadLoom, loadLoomDemo } from "./engine.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -376,14 +376,17 @@ async function renderEngine() {
   await renderLocalReach(local);
   const board = mk("div"); board.innerHTML = "<p class='muted pad'>טוען לוח…</p>"; c.appendChild(board);
   const eyes = mk("div"); eyes.innerHTML = "<p class='muted pad'>טוען מעבר-עיניים…</p>"; c.appendChild(eyes);
+  const loom = mk("div"); loom.innerHTML = "<p class='muted pad'>טוען את הנול…</p>"; c.appendChild(loom);
   const token = await getToken();
   if (token) {
     await loadEngineBoard(token, board);
     await loadEyesPass(token, eyes);
+    await loadLoom(token, loom);
     return;
   }
   loginGate(board, () => loadEngineBoardDemo(board));
   loadEyesPassDemo(eyes);
+  loadLoomDemo(loom);
 }
 
 async function route() {

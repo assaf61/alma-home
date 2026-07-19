@@ -45,4 +45,9 @@ export const CONFIG = {
   // הפסיקות מהנייד חוזרות כקובץ חדש לכל פסיקה לאותה תיקיית inbox (eyes-*.json
   // לצד decide-*.json, בלי להתנגש).
   eyesPassPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/eyes-pass.json",
+
+  // גשר-הענן השלישי של גרסת-הכיס (19/07): הנול לקריאה בנייד - המנצח מפרסם
+  // loom-summary.json (כרטיסים + ספירות, בלי פריטים רגישים ובלי גלם). קריאה-בלבד:
+  // אין נתיב-כתיבה חוזר מהנייד, בשונה מהלוח ומעבר-העיניים.
+  loomSummaryPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/loom-summary.json",
 };

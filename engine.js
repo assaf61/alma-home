@@ -500,3 +500,153 @@ const DEMO_EYES = {
 export function loadEyesPassDemo(container) {
   renderEyes(container, DEMO_EYES, null, { demo: true });
 }
+
+// ---------- הנול (טלפון, 19/07 - גשר-הענן השלישי, קריאה-בלבד) ----------
+// אותו דפוס קריאה כמו הלוח/מעבר-העיניים: קורא loom-summary.json שהמנצח מפרסם.
+// שונה מהם באחד: קריאה-בלבד לחלוטין - אין טופס, אין מיקרופון, אין שליחה, אין נתיב-
+// כתיבה חוזר. עיקרון P2 (הגלם קדוש): הכרטיס נושא כותרת + סטטוס-תחנות + רלוונטיות
+// בלבד, בלי transcript/summary. פריטים רגישים (AdinVeod/D4) סוננו כבר בשרת.
+const STATE_DOT = { ok: "green", warn: "amber", bad: "red" };
+const LOOM_STATUS_HE = { live: "חי", needs: "ממתין להכרעה", resolved: "הוכרע", superseded: "הוחלף", stale: "ישן", done: "הושלם" };
+
+function loomCountsStrip(counts) {
+  const wrap = mk("div", "eng-guard");
+  [["green", "חי", counts.live], ["amber", "טרי", counts.fresh], ["red", "תקוע", counts.stuck], ["green", "נותב", counts.routed]]
+    .forEach(([key, label, n]) => {
+      const chip = mk("span", "eng-dot eng-dot-" + key);
+      chip.appendChild(mk("span", "eng-dot-n", n == null ? "·" : String(n)));
+      chip.appendChild(mk("span", "eng-dot-l", " " + label));
+      wrap.appendChild(chip);
+    });
+  return wrap;
+}
+
+function renderLoomItem(it) {
+  const row = mk("div", "thr");
+  const head = mk("div", "thr-head-row"); head.style.cursor = "default";
+  if (it.ageDays != null) head.appendChild(mk("span", "time ltr", it.ageDays + "d"));
+  head.appendChild(mk("span", "sum", it.title || "(ללא כותרת)"));
+  row.appendChild(head);
+
+  if (it.focus) row.appendChild(mk("span", "locked-tag", "● במוקד - החוט הבא"));
+
+  const meta = [];
+  if (it.relevance && it.relevance.status) meta.push(LOOM_STATUS_HE[it.relevance.status] || it.relevance.status);
+  if (it.stations && it.stations.lifecycleNote) meta.push(it.stations.lifecycleNote);
+  if (it.vault) meta.push("וולט: " + it.vault);
+  if (meta.length) row.appendChild(mk("div", "thr-body muted", meta.join(" · ")));
+
+  // שלוש התחנות כנקודות-צבע (ok/warn/bad → ירוק/כתום/אדום), קריאה בלבד
+  if (it.stations) {
+    const st = mk("div", "eng-guard");
+    [["קליטה", it.stations.klita], ["עיבוד", it.stations.ibud], ["מחזור", it.stations.lifecycle]].forEach(([label, state]) => {
+      const chip = mk("span", "eng-dot eng-dot-" + (STATE_DOT[state] || "amber"));
+      chip.appendChild(mk("span", "eng-dot-l", label));
+      st.appendChild(chip);
+    });
+    row.appendChild(st);
+  }
+  return row;
+}
+
+function renderLoom(container, data, opts) {
+  const demo = !!(opts && opts.demo);
+  container.innerHTML = "";
+  const counts = data.counts || {};
+  const cards = data.cards || [];
+
+  const sh = mk("div", "shead");
+  sh.appendChild(mk("span", "over", "הנול"));
+  sh.appendChild(mk("span", "line"));
+  sh.appendChild(mk("span", "thr-count", cards.length ? String(cards.length) : "✓"));
+  container.appendChild(sh);
+  if (data.updatedAt) container.appendChild(mk("p", "eng-scan", fmtStamp(data.updatedAt)));
+  container.appendChild(loomCountsStrip(counts));
+
+  if (!cards.length) {
+    container.appendChild(mk("div", "card empty", "אין חוטים לקריאה כרגע."));
+    if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה."));
+    return;
+  }
+
+  const search = mk("input"); search.type = "text"; search.className = "tag-in";
+  search.placeholder = "חיפוש בחוטים…"; search.style.margin = "10px 0";
+  container.appendChild(search);
+
+  const list = mk("div", "thr-list");
+  container.appendChild(list);
+
+  function paint(filterText) {
+    list.innerHTML = "";
+    const q = (filterText || "").trim().toLowerCase();
+    const filtered = !q ? cards : cards.filter((c) => {
+      const hay = [c.title, c.vault, c.relevance && c.relevance.reason, c.stations && c.stations.lifecycleNote]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+    if (!filtered.length) { list.appendChild(mk("div", "card empty", "אין תוצאות לחיפוש.")); return; }
+    filtered.forEach((c) => {
+      try { list.appendChild(renderLoomItem(c)); }
+      catch (e) { list.appendChild(mk("div", "thr err-msg", "כרטיס לא תקין: " + (e.message || ""))); }
+    });
+  }
+  search.addEventListener("input", () => paint(search.value));
+  paint("");
+
+  const foot = "קריאה בלבד · הכרעות נעשות בלוח ובמעבר-העיניים למעלה" +
+    (counts.hiddenSensitive ? " · " + counts.hiddenSensitive + " חוטים רגישים לא יוצאים מהמכונה" : "");
+  container.appendChild(mk("p", "hint", foot));
+  if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה."));
+}
+
+// ---------- live ----------
+export async function loadLoom(token, container) {
+  container.innerHTML = "";
+  container.appendChild(mk("p", "muted pad", "טוען את הנול…"));
+
+  let raw;
+  try {
+    raw = await getDrivePathText(token, CONFIG.loomSummaryPath);
+  } catch (e) {
+    container.innerHTML = "";
+    container.appendChild(mk("p", "err-msg pad", "שגיאת טעינת הנול: " + friendlyErr(e)));
+    return;
+  }
+
+  if (raw == null) {
+    container.innerHTML = "";
+    container.appendChild(mk("div", "card empty", "הנול יופיע כשהמכונה תפרסם."));
+    return;
+  }
+
+  let data;
+  try { data = JSON.parse(raw); }
+  catch (e) {
+    container.innerHTML = "";
+    container.appendChild(mk("p", "err-msg pad", "הנול שהתקבל מהענן אינו תקין (JSON שבור): " + (e.message || "")));
+    return;
+  }
+
+  renderLoom(container, data, { demo: false });
+}
+
+// ---------- demo (no auth) ----------
+const DEMO_LOOM = {
+  updatedAt: new Date().toISOString(),
+  counts: { total: 3, run20: 1, fresh: 2, stuck: 1, decided: 1, routed: 0, live: 2, hiddenSensitive: 2 },
+  focus: "demo-a",
+  cards: [
+    { id: "demo-a", title: "Jazz Kisa: בר ג'אז להוספה לרשימת המקומות", kind: "link", ageDays: 1, vault: "alma-r",
+      focus: true, relevance: { status: "live", reason: "" },
+      stations: { klita: "ok", ibud: "ok", lifecycle: "warn", lifecycleNote: "ממתין" } },
+    { id: "demo-b", title: "ריל על מערכות אישיות מסתגלות", kind: "reel", ageDays: 7, vault: null,
+      focus: false, relevance: { status: "stale", reason: "ישן (7 ימים), בלי קריאה" },
+      stations: { klita: "ok", ibud: "warn", lifecycle: "bad", lifecycleNote: "תקוע 7 ימים" } },
+    { id: "demo-c", title: "שאלה על ארכיטקטורת הוולטים", kind: "text", ageDays: 2, vault: "alma-r",
+      focus: false, relevance: { status: "resolved", reason: "הוכרע, ממתין לעיבוד" },
+      stations: { klita: "ok", ibud: "ok", lifecycle: "ok", lifecycleNote: "הוכרע · ממתין לעיבוד שלי" } },
+  ],
+};
+export function loadLoomDemo(container) {
+  renderLoom(container, DEMO_LOOM, { demo: true });
+}
