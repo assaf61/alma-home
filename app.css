@@ -382,3 +382,34 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .cap-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .cap-pill { padding: 9px 15px; border-radius: var(--r-f); border: 1px solid var(--border); background: var(--surface); color: var(--txt); font: inherit; font-size: .9rem; cursor: pointer; }
 .cap-pill.sel { background: var(--acc); color: #fff; border-color: var(--acc); }
+
+/* --- שלוש הדלתות (08/07/2026) --- */
+.doors{display:flex;flex-direction:column;gap:14px;padding:22px 16px 8px}
+.door{display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;text-align:right;
+  background:var(--surface,#EDECEA);border:1px solid var(--border,#D4D1CC);border-radius:16px;
+  padding:20px 18px;font-family:inherit;cursor:pointer;transition:border-color .16s ease,background .16s ease}
+.door:active{background:var(--surface-2,#E2E0DC);border-color:var(--acc,#C8A882)}
+.door-ic{font-size:1.7rem;line-height:1}
+.door-t{font-size:1.25rem;color:var(--txt-x,#0F0F0E);font-weight:500}
+.door-s{font-size:.88rem;color:var(--txt-m,#5A5754)}
+.door-back{margin:14px 16px 0}
+
+/* --- חדר המכונות: לוח-ענן + הכרעות (19/07) --- */
+.eng-guard { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 4px 0 18px; }
+.eng-dot { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: var(--r-f); font-size: .82rem; font-weight: 600; border: 1px solid var(--border); background: var(--surface); }
+.eng-dot-n { font-weight: 700; }
+.eng-dot-red { background: var(--err-l); border-color: var(--err); color: var(--err-d); }
+.eng-dot-amber { background: var(--wrn-l); border-color: var(--wrn); color: var(--wrn-d); }
+.eng-dot-green { background: var(--ok-l); border-color: var(--ok); color: var(--ok-d); }
+.eng-scan { font-size: .78rem; color: var(--txt-s); }
+.eng-rec { color: var(--acc-d); font-weight: 500; }
+.eng-yn { display: flex; gap: 10px; margin-top: 10px; }
+.eng-yn button { flex: 1; font: inherit; font-size: 1rem; font-weight: 600; border-radius: var(--r-m); padding: 14px; min-height: 50px; cursor: pointer; transition: background var(--t-base); }
+.eng-yn .yes { background: var(--ok); color: #fff; border: 0; }
+.eng-yn .yes:hover { background: var(--ok-d); }
+.eng-yn .no { background: var(--bg); color: var(--err-d); border: 1px solid var(--err); }
+.eng-yn button:disabled { opacity: .6; cursor: default; }
+
+/* ta-grow: שדה הערה שגדל עם התוכן, בלי גלילה פנימית (19/07) - חייב לבוא אחרי
+   .ta-remark למעלה כדי לדרוס resize/overflow-y (אותה ספציפיות, סדר-מקור מכריע). */
+.ta-grow { overflow-y: hidden; resize: none; }

@@ -35,4 +35,9 @@ export const CONFIG = {
   // flag to OneDrive; a local PC watcher (scheduled task, ~2 min) sees it, runs
   // the brief daemon once (pay-per-use ~$0.15), and clears it. Zero idle cost.
   refreshFlagPath: "Alma Mind/Alma.R/00-system/brief/refresh-request.json",
+
+  // חדר-המכונות בכיס (19/07): לוח-הענן שהמנצח כותב (guard/ממתין-לך/הכרעות-נעולות),
+  // וההכרעות שחוזרות מהנייד - קובץ חדש לכל הכרעה (כמו הלכידה), לעולם לא דורס.
+  engineBoardPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/engine-board.json",
+  engineInboxPath: "OD - Alma/IT/AI/AI - מקומי/guard-hub/inbox",
 };

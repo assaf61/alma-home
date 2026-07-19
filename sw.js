@@ -3,12 +3,13 @@
 // network. No sensitive data is ever cached: the brief and threads are fetched
 // live per session and rendered in memory.
 
-const CACHE = "ah-shell-v20";
+const CACHE = "ah-shell-v23";
 const SHELL = [
   "./", "./index.html", "./app.css", "./tokens.css", "./manifest.webmanifest",
   "./app.js", "./auth.js", "./graph.js", "./config.js", "./queue.js",
-  "./brief.js", "./threads.js", "./capture.js", "./questions.js", "./actions.js", "./ui.js", "./brief-sample.json",
-  "./alma-mark.png", "./icon-192.png", "./icon-512.png",
+  "./brief.js", "./threads.js", "./capture.js", "./questions.js", "./actions.js", "./engine.js", "./ui.js", "./brief-sample.json",
+  "./read-aloud-neural.js",
+  "./alma-enso.jpg", "./icon-192.png", "./icon-512.png",
 ];
 
 self.addEventListener("install", (e) => {

@@ -8,6 +8,7 @@ import { loadThreads, loadThreadsDemo } from "./threads.js";
 import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
+import { renderLocalReach, loadEngineBoard, loadEngineBoardDemo } from "./engine.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -19,6 +20,7 @@ const pages = {
   questions: document.getElementById("page-questions"),
   actions: document.getElementById("page-actions"),
   distribute: document.getElementById("page-distribute"),
+  engine: document.getElementById("page-engine"),
 };
 
 const HS = { questions: "שאלות פתוחות", actions: "ממתין לך", threads: "חוטים" };
@@ -41,7 +43,7 @@ function showPage(route) {
 function loginGate(container, onDemo) {
   container.innerHTML = "";
   const gate = mk("div", "gate");
-  const img = mk("img"); img.src = "./alma-mark.png"; img.alt = "עלמא"; gate.appendChild(img);
+  const img = mk("img"); img.src = "./alma-enso.jpg"; img.alt = "עלמא"; gate.appendChild(img);
   gate.appendChild(mk("p", "over", "בית עלמא"));
   gate.appendChild(mk("h1", "gate-h1", "ברוך הבא, אסף"));
   gate.appendChild(mk("p", "muted", "התחבר עם חשבון Microsoft שלך כדי לראות את הבריף והחוטים."));
@@ -250,7 +252,35 @@ function prependResumeDemo(container) {
 }
 
 async function renderHome() {
+  // שלוש הדלתות (בקשת אסף 08/07): הבריף · הלוכד · הנול. הבריף המלא נפתח מהדלת הראשונה.
   const c = pages.home;
+  c.innerHTML = "";
+  const doors = mk("div", "doors");
+  const mkDoor = (icon, title, sub, onGo) => {
+    const d = mk("button", "door");
+    d.innerHTML = "<span class='door-ic'>" + icon + "</span><span class='door-t'>" + title + "</span><span class='door-s'>" + sub + "</span>";
+    d.addEventListener("click", onGo);
+    return d;
+  };
+  doors.appendChild(mkDoor("🌅", "הבריף", "מה נכנס, מה יצא, מה עכשיו - התמונה של היום", () => { location.hash = "brief"; }));
+  doors.appendChild(mkDoor("🎙️", "הלוכד", "מה על הלב - טקסט, תמונה, מיקום, חוט אחד", () => { location.hash = "capture"; }));
+  doors.appendChild(mkDoor("🧶", "הנול", "החוטים שלך עם ההמלצות שלי - אתה מכריע", () => { location.hash = "questions"; }));
+  c.appendChild(doors);
+  try { c.appendChild(statusStrip()); } catch (e) {}
+}
+
+async function renderBriefPage() {
+  const c = pages.home;
+  c.innerHTML = "";
+  const back = mk("button", "btn-ghost door-back", "→ חזרה לדלתות");
+  back.addEventListener("click", () => { location.hash = "home"; });
+  c.appendChild(back);
+  const wrap = mk("div");
+  c.appendChild(wrap);
+  await renderHomeBrief(wrap);
+}
+
+async function renderHomeBrief(c) {
   c.innerHTML = "<p class='muted pad'>טוען בריף…</p>";
   const token = await getToken();
   if (token) {
@@ -333,13 +363,29 @@ async function renderDistribute() {
   loginGate(c, () => fillDistribute(c, null));
 }
 
+// 19/07: חדר-המכונות בכיס - גרסה 2: הלוח וההכרעות עוברים דרך הענן (OneDrive/Graph,
+// אותו צינור מאובטח של הלכידה), בלי שום חשיפת-רשת של השרת המקומי. "המכונה בהישג
+// יד" (הבדיקה המקומית, v1) נשארה כרכיב עצמאי בראש העמוד - ראה engine.js.
+async function renderEngine() {
+  const c = pages.engine;
+  c.innerHTML = "";
+  const local = mk("div"); c.appendChild(local);
+  await renderLocalReach(local);
+  const board = mk("div"); board.innerHTML = "<p class='muted pad'>טוען לוח…</p>"; c.appendChild(board);
+  const token = await getToken();
+  if (token) { await loadEngineBoard(token, board); return; }
+  loginGate(board, () => loadEngineBoardDemo(board));
+}
+
 async function route() {
   const r = (location.hash || "#home").replace("#", "");
+  if (r === "brief") { showPage("home"); await renderBriefPage(); refreshCounts(); return; }
   const known = pages[r] ? r : "home";
   showPage(known);
   if (known === "home") await renderHome();
   else if (known === "capture") await renderCapture();
   else if (known === "distribute") await renderDistribute();
+  else if (known === "engine") await renderEngine();
   else if (known === "threads") await renderThreads();
   else if (known === "questions") await renderQuestions();
   else if (known === "actions") await renderActions();
