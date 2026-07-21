@@ -66,9 +66,53 @@ export async function loadSampleData() {
   return res.json();
 }
 
-export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative } = {}) {
+// ---------- 21/07: הבריף כמשטח-מצב (חזון אסף מסשן עלמא-הום) ----------
+// 1. רצועת חירום עליונה: 0-3 עוצרי-יום בלבד; הורדה בנגיעה מלמדת את הסף.
+// 2. "מאז שקראת": ביקור חוזר מציג דלתא, לא את מהדורת הבוקר שוב.
+// 3. קופסאות חיות שסופרות: "נשארו 3, סגרת 4", וקופסה ריקה מכריזה שאתה משוחרר.
+// 4. מהדורת הבוקר נשארת מקופלת בתחתית אחרי שנקראה ("מהדורת היום").
+const VISIT_KEY = "brief-visit";
+const DAY_BASE_KEY = "brief-day-base";
+const DISMISS_KEY = "brief-urgent-dismissed";
+const todayStr = () => new Date().toISOString().slice(0, 10);
+function readLS(k, fb) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } }
+function writeLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* non-fatal */ } }
+
+// day base: the morning's counts, so the boxes can say "סגרת X מאז הבוקר".
+function dayBase(liveCounts) {
+  let base = readLS(DAY_BASE_KEY, null);
+  if (!base || base.date !== todayStr()) {
+    base = { date: todayStr(), ...liveCounts };
+    writeLS(DAY_BASE_KEY, base);
+  }
+  return base;
+}
+
+function boxCard(label, n, base, onGo, freeText) {
+  const b = mk("button", "card cta-card box" + (n === 0 ? " box-done" : ""));
+  b.type = "button";
+  if (n === 0) {
+    b.appendChild(mk("span", "cta-num", "✓"));
+    b.appendChild(mk("span", "cta-txt", freeText));
+  } else {
+    b.appendChild(mk("span", "cta-num", String(n)));
+    const closed = base != null && base > n ? base - n : 0;
+    b.appendChild(mk("span", "cta-txt", label + (closed > 0 ? ` · סגרת ${closed} מאז הבוקר` : "")));
+    b.appendChild(mk("span", "cta-arrow", "←"));
+  }
+  if (onGo && n > 0) b.addEventListener("click", onGo);
+  return b;
+}
+
+export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null } = {}) {
   container.innerHTML = "";
   const app = container;
+
+  // read-stamp: what did he see last, and is the morning edition already read?
+  const builtAt = d.body_built_at || d.generated_at || null;
+  const prevVisit = readLS(VISIT_KEY, null);
+  writeLS(VISIT_KEY, { at: new Date().toISOString() });
+  const alreadyRead = !!(prevVisit && builtAt && new Date(prevVisit.at) > new Date(builtAt));
 
   // header
   const head = mk("header", "brief-head");
@@ -87,6 +131,57 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   if (demo) {
     const banner = mk("div", "demo-banner", "מצב הדגמה · לא מחובר (נתונים סינתטיים)");
     app.appendChild(banner);
+  }
+
+  // --- רצועת החירום (0-3): עוצרי-יום בלבד. מקור: d.urgent, או זרקור בטון err.
+  // פריט שהורד נרשם ליום הזה - ההורדה היא המורה של הסף.
+  {
+    const dis = readLS(DISMISS_KEY, {});
+    const dismissed = dis.date === todayStr() ? (dis.ids || []) : [];
+    const src = (d.urgent && d.urgent.length ? d.urgent
+      : (d.spotlight || []).filter((s) => s.tone === "err").map((s, i) => ({ id: "sp-" + i, title: s.title, body: s.body })));
+    const items = src.filter((u) => !dismissed.includes(u.id)).slice(0, 3);
+    if (items.length) {
+      const strip = mk("div", "urgent-strip");
+      items.forEach((u) => {
+        const btn = mk("button", "urgent-btn"); btn.type = "button";
+        btn.appendChild(mk("span", "ub-t", u.title));
+        const det = mk("div", "urgent-det"); det.hidden = true;
+        if (u.body) det.appendChild(mk("p", "muted", u.body));
+        const demote = mk("button", "btn-ghost ub-demote", "לא עוצר-יום · הורד"); demote.type = "button";
+        demote.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const cur = readLS(DISMISS_KEY, {});
+          const ids = cur.date === todayStr() ? (cur.ids || []) : [];
+          ids.push(u.id);
+          writeLS(DISMISS_KEY, { date: todayStr(), ids });
+          btn.remove(); det.remove();
+        });
+        det.appendChild(demote);
+        btn.addEventListener("click", () => { det.hidden = !det.hidden; });
+        strip.appendChild(btn); strip.appendChild(det);
+      });
+      app.appendChild(strip);
+    }
+    // mark promoted spotlight items so the edition below doesn't show them twice
+    d._promoted = new Set(items.filter((u) => String(u.id).startsWith("sp-")).map((u) => Number(String(u.id).slice(3))));
+  }
+
+  // --- "מאז שקראת": ביקור חוזר פותח בדלתא, לא בחזרה על הבוקר.
+  if (alreadyRead) {
+    const since = mk("div", "since-card card");
+    const bits = [];
+    if (live) {
+      const base = dayBase(live);
+      const closedT = base.threads != null && live.threads != null && base.threads > live.threads ? base.threads - live.threads : 0;
+      if (closedT) bits.push(`סגרת ${closedT} חוטים`);
+      if (live.threads) bits.push(`${live.threads} חוטים פתוחים`);
+      if (live.questions) bits.push(`${live.questions} שאלות`);
+      if (live.actions) bits.push(`${live.actions} ממתינות לך`);
+    }
+    since.appendChild(mk("div", "phead", "מאז שקראת · " + fmtStamp(prevVisit.at)));
+    since.appendChild(mk("div", "muted", bits.length ? bits.join(" · ") : "שקט. שום דבר חדש שדורש אותך."));
+    app.appendChild(since);
   }
 
   // truth-stamp (19/06 fix, layer B): when was the body last rebuilt, and is it stale?
@@ -162,18 +257,20 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     app.appendChild(s);
   }
 
-  // threads CTA (replaces the inline triage; routes to the dispatcher page)
-  if (d.threads) {
-    const n = d.threads.length;
-    const s = sec("חוטים");
-    const cta = mk("button", "card cta-card");
-    cta.appendChild(mk("span", "cta-num", String(n)));
-    cta.appendChild(mk("span", "cta-txt", n ? "חוטים ממתינים למיון" : "ה-inbox נקי"));
-    cta.appendChild(mk("span", "cta-arrow", "←"));
-    if (onGotoThreads) cta.addEventListener("click", onGotoThreads);
-    s.appendChild(cta);
-    app.appendChild(s);
+  // --- הקופסאות החיות: סופרות, פותחות דלת, ומכריזות על מותן ("אתה משוחרר").
+  {
+    const lv = live || {};
+    const tN = lv.threads != null ? lv.threads : (d.threads ? d.threads.length : null);
+    const s = sec("הקופסאות");
+    const base = lv.threads != null ? dayBase(lv) : {};
+    if (tN != null) s.appendChild(boxCard("חוטים ממתינים למיון", tN, base.threads, onGotoThreads, "הנול נקי · אתה משוחרר"));
+    if (lv.questions != null) s.appendChild(boxCard("שאלות פתוחות", lv.questions, base.questions, onGotoThreads, "אין שאלות פתוחות · הכול נסגר"));
+    if (lv.actions != null) s.appendChild(boxCard("ממתינות לך", lv.actions, base.actions, onGotoThreads, "שום דבר לא ממתין לך"));
+    if (s.childNodes.length > 1) app.appendChild(s);
   }
+
+  // --- מהדורת הבוקר: אחרי שנקראה היא מתקפלת לתחתית כ"מהדורת היום".
+  const edRoot = alreadyRead ? mk("div") : app;
 
   // weekend edition (spec 13/07): REPLACES the weekday body, the skeleton stays.
   // 17/07: this surface never knew the field, so every Friday/Saturday it served
@@ -185,7 +282,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     mdInto(c, d.edition.md);
     s.appendChild(c);
     s.appendChild(mk("p", "hint", "מהדורת צופים · " + (d.edition.file || "")));
-    app.appendChild(s);
+    edRoot.appendChild(s);
   }
 
   // fronts
@@ -203,17 +300,20 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     });
     s.appendChild(fc);
     if (d.frontsNote) s.appendChild(mk("p", "hint", d.frontsNote));
-    app.appendChild(s);
+    edRoot.appendChild(s);
   }
 
-  // spotlight
+  // spotlight (מדלג על מה שכבר קודם לרצועת-החירום - מידע לא מופיע פעמיים)
   if (!hasEdition && d.spotlight && d.spotlight.length) {
-    let s = sec("דחוף · זרקור");
-    d.spotlight.forEach((sp) => {
-      const c = mk("div", "card"); c.style.borderInlineStart = "3px solid var(--" + sp.tone + ")";
-      c.appendChild(mk("h2", null, sp.title)); c.appendChild(mk("div", "muted", sp.body)); s.appendChild(c);
-    });
-    app.appendChild(s);
+    const rest = d.spotlight.filter((sp, i) => !(d._promoted && d._promoted.has(i)));
+    if (rest.length) {
+      let s = sec("דחוף · זרקור");
+      rest.forEach((sp) => {
+        const c = mk("div", "card"); c.style.borderInlineStart = "3px solid var(--" + sp.tone + ")";
+        c.appendChild(mk("h2", null, sp.title)); c.appendChild(mk("div", "muted", sp.body)); s.appendChild(c);
+      });
+      edRoot.appendChild(s);
+    }
   }
 
   // drill-down cards
@@ -229,17 +329,17 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       if (o.trigger) { const t = mk("div", "trig-line"); t.appendChild(mk("span", "tag trig", o.trigger)); c.appendChild(t); }
       s.appendChild(c);
     });
-    app.appendChild(s);
+    edRoot.appendChild(s);
   }
 
   // mail
-  if (d.mail) { let s = sec("מייל"); const c = mk("div", "card"); c.appendChild(mk("div", "muted", d.mail)); s.appendChild(c); app.appendChild(s); }
+  if (d.mail) { let s = sec("מייל"); const c = mk("div", "card"); c.appendChild(mk("div", "muted", d.mail)); s.appendChild(c); edRoot.appendChild(s); }
 
   // services
   if (d.services && d.services.length) {
     let s = sec("שירותים"); const c = mk("div", "card"); const box = mk("div", "muted");
     d.services.forEach((x, i) => { if (i) box.appendChild(document.createElement("br")); box.appendChild(document.createTextNode(x)); });
-    c.appendChild(box); s.appendChild(c); app.appendChild(s);
+    c.appendChild(box); s.appendChild(c); edRoot.appendChild(s);
   }
 
   // do / dont (weekday body; hidden on edition days)
@@ -250,7 +350,18 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     (d.doList || []).forEach((x) => { const li = mk("li"); li.appendChild(mk("span", "mk", "↑")); li.appendChild(mk("span", null, x)); doCol.appendChild(li); });
     const dontCol = mk("div", "col dont"); dontCol.appendChild(mk("h3", null, "לא כדאי"));
     (d.dontList || []).forEach((x) => { const li = mk("li"); li.appendChild(mk("span", "mk", "×")); li.appendChild(mk("span", null, x)); dontCol.appendChild(li); });
-    dd.appendChild(doCol); dd.appendChild(dontCol); s.appendChild(dd); app.appendChild(s);
+    dd.appendChild(doCol); dd.appendChild(dontCol); s.appendChild(dd); edRoot.appendChild(s);
+  }
+
+  // the fold itself: on a revisit, the whole morning edition sits collapsed at the bottom.
+  if (alreadyRead && edRoot !== app && edRoot.childNodes.length) {
+    const fold = document.createElement("details");
+    fold.className = "ed-fold";
+    const sum = document.createElement("summary");
+    sum.textContent = "מהדורת היום · כבר קראת";
+    fold.appendChild(sum);
+    fold.appendChild(edRoot);
+    app.appendChild(fold);
   }
 
   app.appendChild(mk("p", "disc", "פחות, אבל טוב יותר"));

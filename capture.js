@@ -1,14 +1,19 @@
 // Capture tab - the collector, merged INTO בית עלמא (jnpv 24/06: one app, not two).
-// Reuses alma-home auth + graph. A capture is always a NEW unique file, never an
-// edit of an existing one, so it can never fork (aligned with the single-writer cure).
+// 21/07 - "הלכידה הפתוחה" (הכרעת אסף): לכידה היא מעטפה אחת פתוחה. מתחילים מכל כיוון
+// מוביל (טקסט/קול/תמונה/מיקום/לינק), מוסיפים פנימה עוד חלקים, וחותמים פעם אחת ("שגר").
+// שכחת לחתום? אחרי שעה של שקט היא נחתמת לבדה ואסף פוגש אותה בנול. זה מחליף את דפוס
+// "שלוש לכידות נפרדות + רביעית שאומרת ששלושתן אחת".
+// A capture is always a NEW unique file, never an edit of an existing one, so it can
+// never fork (aligned with the single-writer cure).
 import { getToken } from "./auth.js";
 import { uploadCapture, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
-import { toast } from "./ui.js";
+import { toast, withMic } from "./ui.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const URL_RE = /^https?:\/\/\S+$/;
+const URL_ANY_RE = /https?:\/\/\S+/;
 
 // Instant triage from memory (Assaf 24/06: the phone is a pipeline - capture fast,
 // then route on the spot from memory, no waiting for the transcript). A lock here
@@ -35,138 +40,219 @@ function extFromMime(type, fallbackName = "") {
   return m ? m[1].toLowerCase() : "bin";
 }
 
-// Mirrors threads-intake/note.js exactly: same filename grammar + frontmatter, so
-// the worker (enrich/distribute) treats merged-app captures identically.
-function buildNote({ kind, text = "", mediaExt = null, sourceUrl = null }) {
+// Mirrors threads-intake/note.js grammar + frontmatter, so the worker (enrich/
+// distribute) treats merged-app captures identically. 21/07: media is now a LIST -
+// the first (primary) lands in the `media:` key (the one enrich transcribes/analyzes);
+// every part is embedded in the body so distribute moves them all with the thread.
+function buildNote({ kind, text = "", mediaParts = [], sourceUrl = null }) {
   const d = new Date();
   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const stem = `${date}-${pad(d.getHours())}${pad(d.getMinutes())}-${kind}-${shortId()}`;
-  const mediaName = mediaExt ? `${stem}.${mediaExt}` : null;
+  const mediaNames = mediaParts.map((p, i) => `${stem}${i ? "-" + (i + 1) : ""}.${p.ext}`);
   const fm = ["---", "type: capture", `capture_kind: ${kind}`, "target_vault: alma-threads",
     "status: raw", `created: ${date}`, "owner: assaf", "tags: []", "enriched: false", `device: ${device()}`];
   if (sourceUrl) fm.push(`source_url: "${String(sourceUrl).replace(/["\n\r]/g, "")}"`);
-  if (mediaName) fm.push(`media: media/${mediaName}`);
+  if (mediaNames.length) fm.push(`media: media/${mediaNames[0]}`);
   fm.push("---", "");
   let body = "";
-  if (mediaName) body += `![[media/${mediaName}]]\n\n`;
+  mediaNames.forEach((n) => { body += `![[media/${n}]]\n`; });
+  if (mediaNames.length) body += "\n";
   if (sourceUrl) body += `${sourceUrl}\n\n`;
   if (text) body += `${text}\n`;
   if (!body) body = "\n";
-  return { fileName: `${stem}.md`, mediaName, content: fm.join("\n") + body };
+  return { fileName: `${stem}.md`, mediaNames, content: fm.join("\n") + body };
 }
 
 // ---------- module state ----------
 let demoMode = false;
 let recorder = null, recChunks = [], recTimerId = null, recStart = 0;
 
+// ---------- the open capture (המעטפה הפתוחה) ----------
+// capOpen holds everything until שגר. Text survives an app kill (localStorage);
+// media blobs live in memory only - if the page dies before sealing, the text is
+// sealed on the next visit and the media is honestly lost (v1 limitation).
+const CAP_DRAFT_KEY = "open-capture-draft";
+const AUTO_SEAL_MS = 60 * 60 * 1000;   // הכרעת אסף: שעה של שקט = נחתמת לבדה
+let capOpen = null;
+let sealTimerId = null;
+
+function persistDraft() {
+  try {
+    if (capOpen && (capOpen.text || "").trim()) {
+      localStorage.setItem(CAP_DRAFT_KEY, JSON.stringify({ startedAt: capOpen.startedAt, lastTouch: capOpen.lastTouch, text: capOpen.text }));
+    } else if (!capOpen || !capOpen.media.length) {
+      localStorage.removeItem(CAP_DRAFT_KEY);
+    }
+  } catch { /* storage blocked - non-fatal */ }
+}
+function touchDraft() { if (capOpen) { capOpen.lastTouch = Date.now(); persistDraft(); } }
+function ensureOpen() {
+  if (!capOpen) capOpen = { startedAt: Date.now(), lastTouch: Date.now(), text: "", media: [] };
+  return capOpen;
+}
+function discardOpen() { capOpen = null; try { localStorage.removeItem(CAP_DRAFT_KEY); } catch {} closeSheet(); }
+function restoreDraft() {
+  if (capOpen) return;
+  try {
+    const raw = localStorage.getItem(CAP_DRAFT_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if ((d.text || "").trim()) capOpen = { startedAt: d.startedAt || Date.now(), lastTouch: d.lastTouch || Date.now(), text: d.text, media: [] };
+  } catch { /* corrupt draft - ignore */ }
+}
+function capAge() { return capOpen ? Date.now() - (capOpen.lastTouch || capOpen.startedAt) : 0; }
+function hasContent() { return !!(capOpen && ((capOpen.text || "").trim() || capOpen.media.length)); }
+
+// auto-seal loop: checks every 5 minutes; also fired on tab load (stale draft from
+// a killed page). Needs a token; without one the envelope simply keeps waiting.
+function armAutoSeal() {
+  if (sealTimerId) return;
+  sealTimerId = setInterval(() => { autoSealIfStale(); }, 5 * 60 * 1000);
+}
+async function autoSealIfStale() {
+  if (demoMode || !hasContent() || capAge() < AUTO_SEAL_MS) return;
+  const token = await getToken().catch(() => null);
+  if (!token) return;
+  await sealCapture({ auto: true, token });
+}
+
 // ---------- overlay helpers (built on demand, removed on close) ----------
 function removeOverlay(id) { const el = document.getElementById(id); if (el) el.remove(); }
+function closeSheet() { removeOverlay("cap-sheet-wrap"); }
 
-function openSheet(state) {
+// The open envelope card. Every entry point lands here; additions join the SAME card.
+function openCard(prefill = {}) {
+  ensureOpen();
+  if (prefill.text) { capOpen.text = (capOpen.text ? capOpen.text.replace(/\n+$/, "") + "\n" : "") + prefill.text; }
+  if (prefill.media) capOpen.media.push(prefill.media);
+  touchDraft();
+  armAutoSeal();
+
   removeOverlay("cap-sheet-wrap");
   const wrap = mk("div", "cap-overlay"); wrap.id = "cap-sheet-wrap";
   const back = mk("div", "cap-backdrop");
-  back.addEventListener("click", closeSheet);
+  back.addEventListener("click", () => { closeSheet(); toast("הלכידה נשארת פתוחה · חזור אליה מתי שתרצה"); });
   const sheet = mk("div", "cap-sheet");
 
-  const isLink = state.kind === "link";
-  sheet.appendChild(mk("div", "cap-sheet-title",
-    { text: "כתוב", voice: "הערה להקלטה", photo: "תמונה", link: "לינק" }[state.kind] || "לכידה"));
+  sheet.appendChild(mk("div", "cap-sheet-title", "לכידה פתוחה"));
+  const hint = mk("p", "hint", "הוסף פנימה מה שבא - הכל נחתם יחד ב\"שגר\". שכחת? אחרי שעה היא נחתמת לבדה ותפגוש אותה בנול.");
+  sheet.appendChild(hint);
 
-  // media preview (a container so an attached photo can render without reopening the sheet)
+  // previews of every collected part
   const prev = mk("div", "cap-prev"); sheet.appendChild(prev);
   function renderPrev() {
     prev.innerHTML = "";
-    if (state.blob && (state.type || "").startsWith("image/")) {
-      const img = mk("img", "cap-prev-img"); img.src = URL.createObjectURL(state.blob); prev.appendChild(img);
-    } else if (state.blob && (state.type || "").startsWith("audio/")) {
-      const au = mk("audio", "cap-prev-audio"); au.controls = true; au.src = URL.createObjectURL(state.blob); prev.appendChild(au);
-    }
+    capOpen.media.forEach((p, i) => {
+      const row = mk("div", "cap-part");
+      if ((p.type || "").startsWith("image/")) {
+        const img = mk("img", "cap-prev-img"); img.src = URL.createObjectURL(p.blob); row.appendChild(img);
+      } else if ((p.type || "").startsWith("audio/")) {
+        const au = mk("audio", "cap-prev-audio"); au.controls = true; au.src = URL.createObjectURL(p.blob); row.appendChild(au);
+      }
+      const rm = mk("button", "btn-ghost cap-part-rm", "הסר"); rm.type = "button";
+      rm.addEventListener("click", () => { capOpen.media.splice(i, 1); touchDraft(); renderPrev(); });
+      row.appendChild(rm);
+      prev.appendChild(row);
+    });
   }
   renderPrev();
 
   const ta = mk("textarea", "cap-ta"); ta.id = "cap-ta";
-  ta.placeholder = isLink ? "הדבק קישור כאן…" : "כתוב או הוסף הערה…";
-  if (state.text) ta.value = state.text;
-  sheet.appendChild(ta);
+  ta.placeholder = "כתוב, הדבק לינק, או הכתב במיקרופון…";
+  ta.value = capOpen.text || "";
+  ta.addEventListener("input", () => { capOpen.text = ta.value; touchDraft(); });
+  // wvg4 (21/07): מיקרופון-הכתבה בחלון הלוכד - היה חסר, בניגוד לכל שאר המשטחים.
+  sheet.appendChild(withMic(ta));
 
-  // Attach a photo to THIS capture (8wnc: מיקום/טקסט + הודעה + תמונה בקצה-חוט אחד).
-  // The save layer already carries text+media together, so this is only a connection.
-  // Hidden on a voice capture, where a photo would clobber the audio (one media per note).
-  if (!(state.blob && (state.type || "").startsWith("audio/"))) {
-    const attachRow = mk("div", "cap-attach");
-    const attachBtn = mk("button", "btn-ghost", "צרף תמונה"); attachBtn.type = "button";
-    const fileIn = mk("input"); fileIn.type = "file"; fileIn.accept = "image/*"; fileIn.hidden = true;
-    attachBtn.addEventListener("click", () => fileIn.click());
-    fileIn.addEventListener("change", (e) => {
-      const f = e.target.files && e.target.files[0];
-      if (!f) return;
-      state.blob = f; state.type = f.type; state.fileName = f.name;
-      if (state.kind === "text" || state.kind === "link") state.kind = "photo";
-      attachBtn.textContent = "תמונה צורפה ✓";
-      renderPrev();
-    });
-    attachRow.appendChild(attachBtn); attachRow.appendChild(fileIn);
-    sheet.appendChild(attachRow);
-  }
+  // + row: grow THIS capture from any direction
+  const addRow = mk("div", "cap-addrow");
+  const addBtn = (label, fn) => { const b = mk("button", "btn-ghost", label); b.type = "button"; b.addEventListener("click", fn); addRow.appendChild(b); };
+  addBtn("+ הקלטה", () => startRec());
+  addBtn("+ תמונה", () => pickPhoto());
+  addBtn("+ מיקום", () => addLocation(ta));
+  sheet.appendChild(addRow);
 
   const row = mk("div", "cap-sheet-row");
-  const send = mk("button", "btn-primary", "שלח ✓"); send.type = "button";
-  send.addEventListener("click", () => sendCapture(state, ta));
-  const cancel = mk("button", "btn-ghost", "ביטול"); cancel.type = "button";
-  cancel.addEventListener("click", closeSheet);
-  row.appendChild(send); row.appendChild(cancel);
+  const send = mk("button", "btn-primary", "שגר ✓"); send.type = "button";
+  send.addEventListener("click", async () => {
+    capOpen.text = ta.value;
+    send.disabled = true; send.textContent = "שולח…";
+    const ok = await sealCapture({});
+    if (!ok) { send.disabled = false; send.textContent = "שגר ✓"; }
+  });
+  const drop = mk("button", "btn-ghost", "מחק"); drop.type = "button";
+  drop.addEventListener("click", () => { discardOpen(); toast("הלכידה נמחקה"); });
+  row.appendChild(send); row.appendChild(drop);
   sheet.appendChild(row);
 
   wrap.appendChild(back); wrap.appendChild(sheet);
   document.body.appendChild(wrap);
-  if (!state.blob) setTimeout(() => ta.focus(), 50);
+  if (!capOpen.media.length && !prefill.noFocus) setTimeout(() => ta.focus(), 50);
 }
-function closeSheet() { removeOverlay("cap-sheet-wrap"); }
 
-// ---------- location capture (8wnc): position + message + optional photo ----------
-function captureLocation() {
-  if (demoMode) {
-    openSheet({ kind: "text", text: "📍 מיקום: 31.766, 35.200 (הדגמה)\nhttps://maps.google.com/?q=31.766,35.200\n\n" });
-    return;
-  }
+function addMedia(blob, type, name) {
+  const part = { blob, type, name: name || "part", ext: extFromMime(type, name || "") };
+  if (document.getElementById("cap-sheet-wrap")) { ensureOpen().media.push(part); touchDraft(); openCard({ noFocus: true }); }
+  else openCard({ media: part, noFocus: true });
+}
+
+// ---------- location: a line inside the open envelope (8wnc + הלכידה הפתוחה) ----------
+function addLocation(ta) {
+  const put = (line) => {
+    ensureOpen();
+    capOpen.text = (ta && ta.value ? ta.value.replace(/\n+$/, "") + "\n" : (capOpen.text || "")) + line;
+    if (ta) ta.value = capOpen.text;
+    touchDraft();
+    if (!ta) openCard({ noFocus: true });
+  };
+  if (demoMode) { put("📍 מיקום: 31.766, 35.200 (הדגמה)\nhttps://maps.google.com/?q=31.766,35.200\n"); return; }
   if (!navigator.geolocation) { toast("מיקום לא נתמך במכשיר"); return; }
   toast("מאתר מיקום…");
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const { latitude, longitude, accuracy } = pos.coords;
       const lat = latitude.toFixed(6), lng = longitude.toFixed(6);
-      openSheet({ kind: "text", text: `📍 מיקום: ${lat}, ${lng} (±${Math.round(accuracy)} מ׳)\nhttps://maps.google.com/?q=${lat},${lng}\n\n` });
+      put(`📍 מיקום: ${lat}, ${lng} (±${Math.round(accuracy)} מ׳)\nhttps://maps.google.com/?q=${lat},${lng}\n`);
     },
     () => toast("אין גישה למיקום"),
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
 }
 
-async function sendCapture(state, ta) {
-  let text = (ta.value || "").trim();
-  let { kind, blob, type, fileName, sourceUrl } = state;
-  if (!text && !blob && !sourceUrl) { toast("אין מה לשלוח"); return; }
-  // a pure URL typed into text becomes a link capture
-  if (!sourceUrl && !blob && URL_RE.test(text)) { kind = "link"; sourceUrl = text; text = ""; }
-  if (kind === "link" && !sourceUrl && URL_RE.test(text)) { sourceUrl = text; text = ""; }
-  const mediaExt = blob ? extFromMime(type, fileName) : null;
-  const note = buildNote({ kind, text, mediaExt, sourceUrl });
+// ---------- seal: one envelope -> one thread file (+ media parts) ----------
+async function sealCapture({ auto = false, token = null }) {
+  if (!hasContent()) { toast("אין מה לשלוח"); return false; }
+  let text = (capOpen.text || "").trim();
+  const media = capOpen.media.slice();
 
-  if (demoMode) { closeSheet(); toast("מצב הדגמה · נקלט ✓"); return; }
+  // leading direction decides the kind; a lone URL (or URL + note) becomes a link
+  let sourceUrl = null;
+  const um = text.match(URL_ANY_RE);
+  if (um) { sourceUrl = um[0]; if (URL_RE.test(text)) text = ""; }
+  const audio = media.find((p) => (p.type || "").startsWith("audio/"));
+  const kind = audio ? "voice" : media.length ? "photo" : sourceUrl ? "link" : "text";
+  // primary media first (enrich transcribes/analyzes the `media:` key)
+  media.sort((a, b) => (a === audio ? -1 : b === audio ? 1 : 0));
+  if (sourceUrl && text) text = text.replace(sourceUrl, "").replace(/\n{3,}/g, "\n\n").trim();
 
-  const btn = document.querySelector("#cap-sheet-wrap .btn-primary");
-  if (btn) { btn.disabled = true; btn.textContent = "שולח…"; }
+  const note = buildNote({ kind, text, mediaParts: media, sourceUrl });
+
+  if (demoMode) { discardOpen(); toast("מצב הדגמה · נקלט ✓"); return true; }
   try {
-    const token = await getToken();
-    if (!token) { toast("התחבר תחילה"); if (btn) { btn.disabled = false; btn.textContent = "שלח ✓"; } return; }
+    const tk = token || await getToken();
+    if (!tk) { if (!auto) toast("התחבר תחילה"); return false; }
     // media first: a note that references missing media is a broken capture
-    if (blob && note.mediaName) await uploadCapture(token, `media/${note.mediaName}`, blob, type);
-    await uploadCapture(token, note.fileName, note.content, "text/markdown");
-    showTriage(note.fileName, token);   // hand straight to triage-from-memory
+    for (let i = 0; i < media.length; i++) {
+      await uploadCapture(tk, `media/${note.mediaNames[i]}`, media[i].blob, media[i].type);
+    }
+    await uploadCapture(tk, note.fileName, note.content, "text/markdown");
+    capOpen = null; try { localStorage.removeItem(CAP_DRAFT_KEY); } catch {}
+    if (auto) { closeSheet(); toast("הלכידה נחתמה לבדה אחרי שעה · תפגוש אותה בנול"); }
+    else showTriage(note.fileName, tk);   // hand straight to triage-from-memory
+    return true;
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = "שלח ✓"; }
-    toast("שגיאת שליחה · " + (e.message || ""));
+    if (!auto) toast("שגיאת שליחה · " + (e.message || ""));
+    return false;
   }
 }
 
@@ -200,7 +286,8 @@ function showTriage(fileName, token) {
   sheet.appendChild(prioWrap);
 
   const ta = mk("textarea", "cap-ta"); ta.placeholder = "הערה מהזיכרון (לא חובה)…"; ta.style.minHeight = "70px";
-  sheet.appendChild(ta);
+  // wvg4 (21/07): גם שדה הערת-הנעילה מקבל הכתבה קולית.
+  sheet.appendChild(withMic(ta));
 
   const row = mk("div", "cap-sheet-row");
   const lock = mk("button", "btn-primary", "נעל ותייק"); lock.type = "button";
@@ -230,7 +317,7 @@ function pickPhoto() {
   const menu = mk("div", "cap-menu");
   const cam = mk("input"); cam.type = "file"; cam.accept = "image/*"; cam.capture = "environment"; cam.hidden = true;
   const gal = mk("input"); gal.type = "file"; gal.accept = "image/*"; gal.hidden = true;
-  const onPick = (e) => { const f = e.target.files && e.target.files[0]; removeOverlay("cap-photo-wrap"); if (f) openSheet({ kind: "photo", blob: f, type: f.type, fileName: f.name }); };
+  const onPick = (e) => { const f = e.target.files && e.target.files[0]; removeOverlay("cap-photo-wrap"); if (f) addMedia(f, f.type, f.name); };
   cam.onchange = onPick; gal.onchange = onPick;
   const bCam = mk("button", "btn-primary", "📷 מצלמה"); bCam.type = "button"; bCam.addEventListener("click", () => cam.click());
   const bGal = mk("button", "btn-ghost", "🖼 גלריה"); bGal.type = "button"; bGal.addEventListener("click", () => gal.click());
@@ -253,7 +340,7 @@ async function startRec() {
       clearInterval(recTimerId);
       removeOverlay("cap-rec-wrap");
       const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
-      if (blob.size > 0) openSheet({ kind: "voice", blob, type: blob.type, fileName: "rec.webm" });
+      if (blob.size > 0) addMedia(blob, blob.type, "rec.webm");
     };
     recorder.start();
     recStart = Date.now();
@@ -286,22 +373,56 @@ async function startRec() {
 }
 
 // ---------- public entry ----------
+// p393 (21/07): לכידת-שיתוף מאנדרואיד. אינסטגרם/דפדפן משתפים אל ה-PWA (share_target
+// במניפסט), app.js מפקיד את המטען ב-sessionStorage ומנתב ללוכד - וכאן הוא נכנס
+// למעטפה הפתוחה. אינסטגרם שמה את ה-URL בשדה text, לא ב-url - מכסים.
+function consumePendingShare() {
+  let raw = null;
+  try { raw = sessionStorage.getItem("pending-share"); sessionStorage.removeItem("pending-share"); } catch {}
+  if (!raw) return null;
+  try {
+    const s = JSON.parse(raw);
+    const inText = ((s.text || "") + " " + (s.title || "")).match(URL_ANY_RE);
+    const url = s.url || (inText && inText[0]) || "";
+    const note = [s.title, s.text].filter(Boolean).join("\n").replace(url, "").trim();
+    return { url, note };
+  } catch { return null; }
+}
+
 export function loadCapture(token, container, opts = {}) {
   demoMode = !!opts.demo;
   container.innerHTML = "";
+  restoreDraft();
+  armAutoSeal();
+  autoSealIfStale();
+
+  const shared = consumePendingShare();
+  if (shared && (shared.url || shared.note)) {
+    setTimeout(() => openCard({ text: [shared.url, shared.note].filter(Boolean).join("\n") }), 50);
+  }
 
   const head = mk("div", "thr-head");
   head.appendChild(mk("span", "over", "לכידה"));
   head.appendChild(mk("span", "thr-count", "מה עולה לך?"));
   container.appendChild(head);
 
+  // the open envelope, if one is waiting
+  if (hasContent()) {
+    const strip = mk("button", "cap-open-strip");
+    const mins = Math.round(capAge() / 60000);
+    strip.appendChild(mk("span", null, "✉️ לכידה פתוחה ממתינה" + (mins > 0 ? ` · ${mins} דק'` : "")));
+    strip.appendChild(mk("span", "muted", "המשך להוסיף או שגר"));
+    strip.addEventListener("click", () => openCard({ noFocus: true }));
+    container.appendChild(strip);
+  }
+
   const grid = mk("div", "cap-grid");
   const actions = [
-    ["✍️", "כתוב", () => openSheet({ kind: "text" })],
+    ["✍️", "כתוב", () => openCard({})],
     ["🎤", "הקלט", () => startRec()],
     ["📷", "צלם", () => pickPhoto()],
-    ["📍", "מיקום", () => captureLocation()],
-    ["🔗", "לינק", () => openSheet({ kind: "link" })],
+    ["📍", "מיקום", () => addLocation(null)],
+    ["🔗", "לינק", () => openCard({})],
   ];
   actions.forEach(([ico, label, fn]) => {
     const b = mk("button", "cap-btn"); b.type = "button";
@@ -314,7 +435,7 @@ export function loadCapture(token, container, opts = {}) {
 
   container.appendChild(mk("p", "hint", demoMode
     ? "מצב הדגמה - הלכידה לא נשלחת ל-OneDrive."
-    : "כל לכידה נשמרת ל-OneDrive ועוברת תמלול ומיון אוטומטי. חוט חדש = קובץ חדש, לעולם לא מתנגש."));
+    : "לכידה = מעטפה פתוחה: התחל מכל כיוון, הוסף פנימה, ושגר פעם אחת. הכל נשמר ל-OneDrive ועובר תמלול ומיון אוטומטי."));
 }
 
 export function loadCaptureDemo(container) { loadCapture(null, container, { demo: true }); }

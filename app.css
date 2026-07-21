@@ -357,6 +357,18 @@ details ul li { padding: 3px 0; }
 .cap-sheet-row { display: flex; gap: 10px; margin-top: 14px; }
 .cap-sheet-row .btn-primary { flex: 1; }
 .cap-rec { align-items: center; text-align: center; gap: 14px; }
+
+/* ---------- הלכידה הפתוחה (21/07) ---------- */
+.cap-addrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cap-part { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.cap-part .cap-prev-img { max-height: 120px; margin-bottom: 0; }
+.cap-part .cap-prev-audio { margin-bottom: 0; }
+.cap-part-rm { font-size: .8rem; padding: 6px 10px; flex-shrink: 0; }
+.cap-open-strip {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: calc(100% - 32px);
+  margin: 0 16px 12px; padding: 14px 16px; text-align: right; font: inherit; cursor: pointer;
+  background: var(--surface); border: 1px dashed var(--acc); border-radius: var(--r-m); color: var(--txt-x);
+}
 .cap-rec-timer { font-size: 2rem; font-weight: 300; color: var(--txt-x); font-variant-numeric: tabular-nums; }
 .cap-rec-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--err, #c0392b); animation: cap-pulse 1s infinite; }
 @keyframes cap-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
@@ -382,6 +394,23 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .cap-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .cap-pill { padding: 9px 15px; border-radius: var(--r-f); border: 1px solid var(--border); background: var(--surface); color: var(--txt); font: inherit; font-size: .9rem; cursor: pointer; }
 .cap-pill.sel { background: var(--acc); color: #fff; border-color: var(--acc); }
+
+/* ---------- הבריף כמשטח-מצב (21/07) ---------- */
+.urgent-strip { display: flex; flex-direction: column; gap: 8px; margin: 0 16px 14px; }
+.urgent-btn {
+  display: block; width: 100%; text-align: right; font: inherit; cursor: pointer;
+  padding: 14px 16px; border-radius: var(--r-m); border: 1px solid var(--err, #c0392b);
+  background: var(--err-l, #fdecea); color: var(--err-d, #7b241c);
+}
+.urgent-btn .ub-t { font-weight: 600; }
+.urgent-det { padding: 4px 16px 10px; }
+.ub-demote { font-size: .82rem; padding: 6px 10px; margin-top: 6px; }
+.since-card { margin: 0 16px 14px; }
+.box.box-done { border-color: var(--ok, #8FA888); }
+.box.box-done .cta-num { color: var(--ok, #8FA888); }
+.ed-fold { margin: 18px 16px 8px; border: 1px solid var(--border); border-radius: var(--r-m); background: var(--surface); }
+.ed-fold > summary { padding: 14px 16px; cursor: pointer; color: var(--txt-m); font-weight: 600; list-style-position: inside; }
+.ed-fold[open] > summary { border-bottom: 1px solid var(--border); margin-bottom: 8px; }
 
 /* --- שלוש הדלתות (08/07/2026) --- */
 .doors{display:flex;flex-direction:column;gap:14px;padding:22px 16px 8px}

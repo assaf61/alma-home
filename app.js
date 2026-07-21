@@ -8,7 +8,7 @@ import { loadThreads, loadThreadsDemo } from "./threads.js";
 import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
-import { renderLocalReach, loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo, loadLoom, loadLoomDemo } from "./engine.js";
+import { renderEngineRoom, engineBase } from "./engine.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -251,33 +251,18 @@ function prependResumeDemo(container) {
   container.insertBefore(resumeCard(DEMO_RESUME_ACTS, DEMO_RESUME_QS), container.firstChild);
 }
 
+// 21/07 (השלד, הכרעת אסף): הבית הוא הבריף עצמו - בלי מסך-דלתות באמצע. שלושת
+// הכפתורים התחתונים הם הדלתות. מסך-הדלתות של 08/07 יצא; דלת-הנול חיה בחדר המכונות.
 async function renderHome() {
-  // שלוש הדלתות (בקשת אסף 08/07): הבריף · הלוכד · הנול. הבריף המלא נפתח מהדלת הראשונה.
   const c = pages.home;
   c.innerHTML = "";
-  const doors = mk("div", "doors");
-  const mkDoor = (icon, title, sub, onGo) => {
-    const d = mk("button", "door");
-    d.innerHTML = "<span class='door-ic'>" + icon + "</span><span class='door-t'>" + title + "</span><span class='door-s'>" + sub + "</span>";
-    d.addEventListener("click", onGo);
-    return d;
-  };
-  doors.appendChild(mkDoor("🌅", "הבריף", "מה נכנס, מה יצא, מה עכשיו - התמונה של היום", () => { location.hash = "brief"; }));
-  doors.appendChild(mkDoor("🎙️", "הלוכד", "מה על הלב - טקסט, תמונה, מיקום, חוט אחד", () => { location.hash = "capture"; }));
-  doors.appendChild(mkDoor("🧶", "הנול", "החוטים שלך עם ההמלצות שלי - אתה מכריע", () => { location.hash = "questions"; }));
-  c.appendChild(doors);
-  try { c.appendChild(statusStrip()); } catch (e) {}
-}
-
-async function renderBriefPage() {
-  const c = pages.home;
-  c.innerHTML = "";
-  const back = mk("button", "btn-ghost door-back", "→ חזרה לדלתות");
-  back.addEventListener("click", () => { location.hash = "home"; });
-  c.appendChild(back);
   const wrap = mk("div");
   c.appendChild(wrap);
   await renderHomeBrief(wrap);
+}
+
+async function renderBriefPage() {   // #brief נשאר ככינוי לבית
+  await renderHome();
 }
 
 async function renderHomeBrief(c) {
@@ -287,8 +272,8 @@ async function renderHomeBrief(c) {
     try {
       const data = await loadBriefData(token);
       if (data) {
-        renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative });
-        c.insertBefore(statusStrip(), c.firstChild);   // phoe: counters on the landing page
+        // 21/07: הקופסאות החיות בתוך הבריף החליפו את פס-הצ'יפים (phoe) - מידע פעם אחת.
+        renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts });
         await prependResume(c, token);                 // "המשך מכאן" sits at the very top
         if (data.date) localStorage.setItem(BRIEF_SEEN_KEY, data.date);   // viewing home clears "new"
         paintCounts(counts);
@@ -369,24 +354,12 @@ async function renderDistribute() {
 // גשר-הענן השני (19/07): מעבר-עיניים מתחת ללוח, אותו דפוס. שער-ההתחברות מוצג פעם
 // אחת בתוך הלוח (כמו קודם); כשאין טוקן, מעבר-העיניים עובר ישר להדגמה - בלי שער
 // כפול - בדיוק כמו שהמפיץ מציג הדגמה לשלושת הקופסאות שלו בלי לשער כל אחת בנפרד.
+// 21/07 (הכרעת אסף): חדר המכונות = דלתות אל החדר האמיתי (localhost מהמחשב, הצינור
+// הפרטי מהטלפון). רשימות-הכיס המתות הוסרו. אין צורך בטוקן Graph - זו לא קריאת ענן.
 async function renderEngine() {
   const c = pages.engine;
   c.innerHTML = "";
-  const local = mk("div"); c.appendChild(local);
-  await renderLocalReach(local);
-  const board = mk("div"); board.innerHTML = "<p class='muted pad'>טוען לוח…</p>"; c.appendChild(board);
-  const eyes = mk("div"); eyes.innerHTML = "<p class='muted pad'>טוען מעבר-עיניים…</p>"; c.appendChild(eyes);
-  const loom = mk("div"); loom.innerHTML = "<p class='muted pad'>טוען את הנול…</p>"; c.appendChild(loom);
-  const token = await getToken();
-  if (token) {
-    await loadEngineBoard(token, board);
-    await loadEyesPass(token, eyes);
-    await loadLoom(token, loom);
-    return;
-  }
-  loginGate(board, () => loadEngineBoardDemo(board));
-  loadEyesPassDemo(eyes);
-  loadLoomDemo(loom);
+  await renderEngineRoom(c);
 }
 
 async function route() {
@@ -433,6 +406,18 @@ async function main() {
       document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
     }).catch(() => {});
   }
+  // p393 (21/07): מטען-שיתוף מאנדרואיד (share_target במניפסט) מגיע כ-?title/text/url.
+  // מפקידים אותו, מנקים את הכתובת, ומנתבים ללוכד - שם הגיליון נפתח ממולא.
+  try {
+    const sp = new URLSearchParams(location.search);
+    if (sp.has("url") || sp.has("text") || sp.has("title")) {
+      sessionStorage.setItem("pending-share", JSON.stringify({
+        title: sp.get("title") || "", text: sp.get("text") || "", url: sp.get("url") || "",
+      }));
+      history.replaceState(null, "", location.pathname + "#capture");
+    }
+  } catch { /* share is best-effort - never block boot */ }
+
   await initAuth();
   setAuthChip();
 
