@@ -404,7 +404,12 @@ img, audio, video, iframe, svg { max-width: 100%; }
 }
 .urgent-btn .ub-t { font-weight: 600; }
 .urgent-det { padding: 4px 16px 10px; }
-.ub-demote { font-size: .82rem; padding: 6px 10px; margin-top: 6px; }
+.ub-demote { font-size: .82rem; padding: 6px 10px; }
+.ub-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.ub-treat { flex: 0 0 auto; }
+.ub-undo { font-size: .82rem; margin-top: 4px; }
+.eng-enter { width: 100%; padding: 16px; font-size: 1.05rem; margin: 6px 0 10px; }
+.eng-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .since-card { margin: 0 16px 14px; }
 .box.box-done { border-color: var(--ok, #8FA888); }
 .box.box-done .cta-num { color: var(--ok, #8FA888); }

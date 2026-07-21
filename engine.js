@@ -48,28 +48,32 @@ export async function renderEngineRoom(container) {
   const base = isLocal ? ENGINE_LOCAL : ENGINE_PIPE;
   status.remove();
 
-  const p = mk("p", "muted", isLocal
-    ? "אתה על המכונה עצמה. החדר בהישג יד."
-    : "הדרך אל החדר: הצינור הפרטי. ודא ש-Tailscale דולק במכשיר הזה.");
-  box.appendChild(p);
+  // משוב אסף 21/07 בוקר: "כשאני פותח את חדר המכונות אני רוצה את כל החדר, לא 4
+  // כפתורים". דלת ראשית אחת שפותחת את החדר המלא באותו חלון (חזרה = כפתור אחורה),
+  // ומתחתיה קפיצות-מהירות קטנות. כשיהיה HTTPS בצינור, החדר יוטמע כאן פנימה.
+  const main = mk("button", "btn-primary eng-enter"); main.type = "button";
+  main.textContent = "היכנס לחדר המכונות";
+  main.addEventListener("click", () => { window.location.href = base + "/hub"; });
+  box.appendChild(main);
 
-  const doors = mk("div", "doors");
-  ROOMS.forEach((r) => {
-    const b = mk("button", "door");
-    b.appendChild(mk("span", "door-t", r.label));
-    b.appendChild(mk("span", "door-s", r.what));
-    b.addEventListener("click", () => window.open(base + "/" + r.key, "_blank", "noopener"));
-    doors.appendChild(b);
+  const quick = mk("div", "eng-quick");
+  ROOMS.filter((r) => r.key !== "hub").forEach((r) => {
+    const b = mk("button", "btn-ghost"); b.type = "button"; b.textContent = r.label;
+    b.addEventListener("click", () => { window.location.href = base + "/" + r.key; });
+    quick.appendChild(b);
   });
-  box.appendChild(doors);
+  box.appendChild(quick);
+
+  const p = mk("p", "muted small", isLocal
+    ? "אתה על המכונה עצמה. החדר בהישג יד."
+    : "הדרך אל החדר עוברת בצינור הפרטי - ודא ש-Tailscale דולק במכשיר. לא נפתח? נסה את הכתובת הישירה למטה.");
+  box.appendChild(p);
 
   if (!isLocal) {
     const alt = mk("p", "muted small");
-    alt.appendChild(document.createTextNode("הדלת לא נפתחת? נסה דרך "));
-    const a = mk("a", null, "הכתובת הישירה");
-    a.href = ENGINE_PIPE_IP + "/hub"; a.target = "_blank"; a.rel = "noopener";
+    const a = mk("a", null, ENGINE_PIPE_IP + "/hub");
+    a.href = ENGINE_PIPE_IP + "/hub"; a.className = "ltr";
     alt.appendChild(a);
-    alt.appendChild(document.createTextNode(" או ודא ש-Tailscale מחובר."));
     box.appendChild(alt);
   }
 }

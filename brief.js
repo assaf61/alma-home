@@ -88,6 +88,8 @@ function dayBase(liveCounts) {
   return base;
 }
 
+// 21/07 בוקר (משוב אסף): קופסה היא דלת תמיד - גם ריקה. "אם יש שם משהו, כשאלחץ
+// אגיע ואעבוד בו"; וכשאין, הלחיצה עדיין פותחת את המקום לוודא בעיניים.
 function boxCard(label, n, base, onGo, freeText) {
   const b = mk("button", "card cta-card box" + (n === 0 ? " box-done" : ""));
   b.type = "button";
@@ -98,9 +100,9 @@ function boxCard(label, n, base, onGo, freeText) {
     b.appendChild(mk("span", "cta-num", String(n)));
     const closed = base != null && base > n ? base - n : 0;
     b.appendChild(mk("span", "cta-txt", label + (closed > 0 ? ` · סגרת ${closed} מאז הבוקר` : "")));
-    b.appendChild(mk("span", "cta-arrow", "←"));
   }
-  if (onGo && n > 0) b.addEventListener("click", onGo);
+  b.appendChild(mk("span", "cta-arrow", "←"));
+  if (onGo) b.addEventListener("click", onGo);
   return b;
 }
 
@@ -143,11 +145,21 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     const items = src.filter((u) => !dismissed.includes(u.id)).slice(0, 3);
     if (items.length) {
       const strip = mk("div", "urgent-strip");
+      // משוב אסף 21/07 בוקר: לחיצה על הקובייה פותחת אותה, ובפנים דלת "טפל בזה"
+      // שמובילה למקום הטיפול המיידי. ההורדה קטנה והפיכה - "בטל" מיד, לא היעלמות.
       items.forEach((u) => {
         const btn = mk("button", "urgent-btn"); btn.type = "button";
         btn.appendChild(mk("span", "ub-t", u.title));
         const det = mk("div", "urgent-det"); det.hidden = true;
         if (u.body) det.appendChild(mk("p", "muted", u.body));
+        const actRow = mk("div", "ub-actions");
+        const treat = mk("button", "btn-primary ub-treat", "טפל בזה ←"); treat.type = "button";
+        treat.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (u.url) { window.open(u.url, "_blank", "noopener"); return; }
+          import("./engine.js").then((m) => m.engineBase().then((b) => window.open(b + "/hub", "_blank", "noopener")));
+        });
+        actRow.appendChild(treat);
         const demote = mk("button", "btn-ghost ub-demote", "לא עוצר-יום · הורד"); demote.type = "button";
         demote.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -155,9 +167,17 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
           const ids = cur.date === todayStr() ? (cur.ids || []) : [];
           ids.push(u.id);
           writeLS(DISMISS_KEY, { date: todayStr(), ids });
-          btn.remove(); det.remove();
+          btn.hidden = true; det.hidden = true;
+          const undo = mk("button", "btn-ghost ub-undo", "הורד מהרצועה · בטל"); undo.type = "button";
+          undo.addEventListener("click", () => {
+            const c2 = readLS(DISMISS_KEY, {});
+            writeLS(DISMISS_KEY, { date: todayStr(), ids: (c2.ids || []).filter((x) => x !== u.id) });
+            undo.remove(); btn.hidden = false;
+          });
+          strip.appendChild(undo);
         });
-        det.appendChild(demote);
+        actRow.appendChild(demote);
+        det.appendChild(actRow);
         btn.addEventListener("click", () => { det.hidden = !det.hidden; });
         strip.appendChild(btn); strip.appendChild(det);
       });
@@ -332,8 +352,15 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     edRoot.appendChild(s);
   }
 
-  // mail
-  if (d.mail) { let s = sec("מייל"); const c = mk("div", "card"); c.appendChild(mk("div", "muted", d.mail)); s.appendChild(c); edRoot.appendChild(s); }
+  // mail - דלת, לא טקסט (משוב אסף 21/07): לחיצה פותחת את התיבה עצמה.
+  if (d.mail) {
+    let s = sec("מייל");
+    const c = mk("button", "card cta-card"); c.type = "button";
+    c.appendChild(mk("span", "cta-txt", d.mail));
+    c.appendChild(mk("span", "cta-arrow", "←"));
+    c.addEventListener("click", () => window.open("https://outlook.office.com/mail/", "_blank", "noopener"));
+    s.appendChild(c); edRoot.appendChild(s);
+  }
 
   // services
   if (d.services && d.services.length) {
