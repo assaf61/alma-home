@@ -8,7 +8,7 @@ import { loadThreads, loadThreadsDemo } from "./threads.js";
 import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
-import { renderEngineRoom, engineBase } from "./engine.js";
+import { loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo, loadLoom, loadLoomDemo } from "./engine.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -356,10 +356,25 @@ async function renderDistribute() {
 // כפול - בדיוק כמו שהמפיץ מציג הדגמה לשלושת הקופסאות שלו בלי לשער כל אחת בנפרד.
 // 21/07 (הכרעת אסף): חדר המכונות = דלתות אל החדר האמיתי (localhost מהמחשב, הצינור
 // הפרטי מהטלפון). רשימות-הכיס המתות הוסרו. אין צורך בטוקן Graph - זו לא קריאת ענן.
+// 22/07 (משוב אסף): לא נכנסים לחדר-החי דרך הצינור (iframe דסקטופ, שירותים-מתים).
+// משטח-הקידום מוצג ישירות בבית-עלמא, מותאם-טלפון, וקורא מהענן - חי גם כששירות
+// במחשב כבוי. הנול, הלוח ומעבר-העיניים, כל אחד עם הכרעה שנכתבת ל-inbox.
 async function renderEngine() {
   const c = pages.engine;
   c.innerHTML = "";
-  await renderEngineRoom(c);
+  const board = mk("div"); board.innerHTML = "<p class='muted pad'>טוען לוח…</p>"; c.appendChild(board);
+  const eyes = mk("div"); eyes.innerHTML = "<p class='muted pad'>טוען מעבר-עיניים…</p>"; c.appendChild(eyes);
+  const loom = mk("div"); loom.innerHTML = "<p class='muted pad'>טוען את הנול…</p>"; c.appendChild(loom);
+  const token = await getToken();
+  if (token) {
+    await loadEngineBoard(token, board);
+    await loadEyesPass(token, eyes);
+    await loadLoom(token, loom);
+    return;
+  }
+  loginGate(board, () => loadEngineBoardDemo(board));
+  loadEyesPassDemo(eyes);
+  loadLoomDemo(loom);
 }
 
 async function route() {
