@@ -447,3 +447,20 @@ img, audio, video, iframe, svg { max-width: 100%; }
 /* ta-grow: שדה הערה שגדל עם התוכן, בלי גלילה פנימית (19/07) - חייב לבוא אחרי
    .ta-remark למעלה כדי לדרוס resize/overflow-y (אותה ספציפיות, סדר-מקור מכריע). */
 .ta-grow { overflow-y: hidden; resize: none; }
+
+/* עמוד-המענה "מה השאלה?" (23/07): רצועת-קבלות + תג-מדרגה של סולם-העדיפויות */
+.rcp { margin: 10px 0 4px; }
+.rcp summary { cursor: pointer; color: var(--txt-m); padding: 8px 2px; font-size: .9rem; }
+.rcp-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-l); padding: 2px 14px; }
+.rcp-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.rcp-row:last-child { border-bottom: 0; }
+.rcp-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.rcp-v { flex: 0 0 auto; font-size: .8rem; font-weight: 700; border-radius: var(--r-f); padding: 2px 10px; }
+.rcp-v.yes { color: var(--ok-d); background: var(--ok-l); border: 1px solid var(--ok); }
+.rcp-v.no { color: var(--txt-m); background: var(--bg); border: 1px solid var(--border); }
+.rcp-t { flex: 1 1 200px; font-size: .92rem; color: var(--txt); }
+.rcp-st { margin-top: 3px; font-size: .78rem; color: var(--txt-s); }
+.rcp-note { margin-top: 4px; font-size: .85rem; color: var(--txt-m); }
+.eng-tier { flex: 0 0 auto; font-size: .64rem; font-weight: 600; border-radius: var(--r-f); padding: 2px 9px; color: var(--acc-d); background: var(--acc-l); }
+.eng-tier.t1 { color: var(--err-d); background: var(--err-l); }
+.eng-tier.t4 { color: var(--txt-m); background: var(--bg); border: 1px solid var(--border); }

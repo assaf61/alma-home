@@ -87,6 +87,13 @@ export async function renderLocalReach(container) {
 const DECIDED_KEY = "engine-decided";       // { [id]: {verdict, note, at} } - עד שהלוח כבר לא כולל את ה-id
 const DRAFT_KEY = "engine-note-draft";      // { [id]: text } - טיוטת הערה, נמחקת אחרי שליחה מוצלחת
 
+// 23/07 (עמוד-המענה "מה השאלה?"): ההכרעות המקומיות נחשפות גם ל-answer.js -
+// אותו מפתח localStorage, כדי ששני הפנים (חדר-מלא / עמוד-מענה) לא יסתרו זה את זה.
+export function localDecided() { return readJSON(DECIDED_KEY, {}); }
+
+// סולם-העדיפויות (הכרעת 22/07): תג-מדרגה על כרטיס ממתין. שירות מעל מכונה, תמיד.
+const TIER_HE = { 1: "אדם מחכה", 2: "ריצה חונה", 3: "שירות", 4: "מכונה" };
+
 function renderGuardLine(guard) {
   const wrap = mk("div", "eng-guard");
   [["red", "אדום", guard.red], ["amber", "כתום", guard.amber], ["green", "ירוק", guard.green]].forEach(([key, label, n]) => {
@@ -144,6 +151,7 @@ function renderAwaitingItem(it, ctx) {
 
   const head = mk("div", "thr-head-row"); head.style.cursor = "default";
   head.appendChild(mk("span", "sum", it.title || "(ללא כותרת)"));
+  if (it.tier) head.appendChild(mk("span", "eng-tier t" + it.tier, TIER_HE[it.tier] || ""));
   row.appendChild(head);
 
   if (it.detail) row.appendChild(mk("div", "thr-body", it.detail));
@@ -181,7 +189,7 @@ function renderAwaitingItem(it, ctx) {
   return row;
 }
 
-function renderAwaitingSection(items, ctx) {
+export function renderAwaitingSection(items, ctx) {
   const sec = mk("section");
   const sh = mk("div", "shead");
   sh.appendChild(mk("span", "over", "ממתין לך"));

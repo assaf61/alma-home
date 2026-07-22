@@ -9,6 +9,7 @@ import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
 import { loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo, loadLoom, loadLoomDemo } from "./engine.js";
+import { loadAnswer, loadAnswerDemo } from "./answer.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -21,6 +22,7 @@ const pages = {
   actions: document.getElementById("page-actions"),
   distribute: document.getElementById("page-distribute"),
   engine: document.getElementById("page-engine"),
+  answer: document.getElementById("page-answer"),
 };
 
 const HS = { questions: "שאלות פתוחות", actions: "ממתין לך", threads: "חוטים" };
@@ -359,6 +361,16 @@ async function renderDistribute() {
 // 22/07 (משוב אסף): לא נכנסים לחדר-החי דרך הצינור (iframe דסקטופ, שירותים-מתים).
 // משטח-הקידום מוצג ישירות בבית-עלמא, מותאם-טלפון, וקורא מהענן - חי גם כששירות
 // במחשב כבוי. הנול, הלוח ומעבר-העיניים, כל אחד עם הכרעה שנכתבת ל-inbox.
+// 23/07 (הכרעת אסף): הכפתור השלישי = עמוד-המענה "מה השאלה?" - המשטח שמנוקז
+// בהפסקות: קבלות (מה הכרעת ומה קרה עם זה) + ממתינים לפי סולם-העדיפויות.
+async function renderAnswer() {
+  const c = pages.answer;
+  c.innerHTML = "<p class='muted pad'>טוען…</p>";
+  const token = await getToken();
+  if (token) { await loadAnswer(token, c); return; }
+  loginGate(c, () => loadAnswerDemo(c));
+}
+
 async function renderEngine() {
   const c = pages.engine;
   c.innerHTML = "";
@@ -386,6 +398,7 @@ async function route() {
   else if (known === "capture") await renderCapture();
   else if (known === "distribute") await renderDistribute();
   else if (known === "engine") await renderEngine();
+  else if (known === "answer") await renderAnswer();
   else if (known === "threads") await renderThreads();
   else if (known === "questions") await renderQuestions();
   else if (known === "actions") await renderActions();
