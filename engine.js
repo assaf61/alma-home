@@ -215,13 +215,21 @@ function renderLockedItem(it) {
   return row;
 }
 
-function renderLockedSection(items) {
-  const sec = mk("section");
-  const sh = mk("div", "shead");
-  sh.appendChild(mk("span", "over", "הכרעות נעולות"));
-  sh.appendChild(mk("span", "line"));
-  sh.appendChild(mk("span", "thr-count", String(items.length)));
-  sec.appendChild(sh);
+function renderLockedSection(items, opts) {
+  const folded = !!(opts && opts.folded) && items.length > 0;
+  const sec = folded ? document.createElement("details") : mk("section");
+  if (folded) {
+    sec.style.marginTop = "12px";
+    const sm = mk("summary", null, "הכרעות נעולות · " + items.length);
+    sm.style.cursor = "pointer"; sm.style.color = "var(--txt-m)"; sm.style.padding = "8px 2px";
+    sec.appendChild(sm);
+  } else {
+    const sh = mk("div", "shead");
+    sh.appendChild(mk("span", "over", "הכרעות נעולות"));
+    sh.appendChild(mk("span", "line"));
+    sh.appendChild(mk("span", "thr-count", String(items.length)));
+    sec.appendChild(sh);
+  }
 
   if (!items.length) {
     sec.appendChild(mk("div", "card empty", "עוד אין הכרעות נעולות."));
@@ -274,7 +282,8 @@ function renderBoard(container, board, token, opts) {
 
   container.appendChild(renderGuardLine(board.guard || {}));
   container.appendChild(renderAwaitingSection(board.awaiting || [], { token, demo, decided }));
-  container.appendChild(renderLockedSection((board.locked || []).slice(0, 30)));
+  // 22/07 (משוב אסף): הנעולות (closed) מקופלות - לא ערימה גדולה מעל הפתוחים.
+  container.appendChild(renderLockedSection((board.locked || []).slice(0, 30), { folded: true }));
 
   if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה - שינויים מקומיים בלבד, ללא כתיבה ל-OneDrive."));
 }
