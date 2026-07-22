@@ -532,7 +532,7 @@ function loomCountsStrip(counts) {
   return wrap;
 }
 
-function renderLoomItem(it) {
+function renderLoomItem(it, ctx) {
   const row = mk("div", "thr");
   const head = mk("div", "thr-head-row"); head.style.cursor = "default";
   if (it.ageDays != null) head.appendChild(mk("span", "time ltr", it.ageDays + "d"));
@@ -540,6 +540,7 @@ function renderLoomItem(it) {
   row.appendChild(head);
 
   if (it.focus) row.appendChild(mk("span", "locked-tag", "● במוקד - החוט הבא"));
+  if (it.relevance && it.relevance.reason) row.appendChild(mk("div", "thr-body eng-rec", it.relevance.reason));
 
   const meta = [];
   if (it.relevance && it.relevance.status) meta.push(LOOM_STATUS_HE[it.relevance.status] || it.relevance.status);
@@ -547,66 +548,85 @@ function renderLoomItem(it) {
   if (it.vault) meta.push("וולט: " + it.vault);
   if (meta.length) row.appendChild(mk("div", "thr-body muted", meta.join(" · ")));
 
-  // שלוש התחנות כנקודות-צבע (ok/warn/bad → ירוק/כתום/אדום), קריאה בלבד
-  if (it.stations) {
-    const st = mk("div", "eng-guard");
-    [["קליטה", it.stations.klita], ["עיבוד", it.stations.ibud], ["מחזור", it.stations.lifecycle]].forEach(([label, state]) => {
-      const chip = mk("span", "eng-dot eng-dot-" + (STATE_DOT[state] || "amber"));
-      chip.appendChild(mk("span", "eng-dot-l", label));
-      st.appendChild(chip);
-    });
-    row.appendChild(st);
+  // 22/07 (משוב אסף - "long board, nothing to do"): הנול אינטראקטיבי. כל חוט-דורש
+  // נשלח להכרעה מהטלפון (השאר/ארכב + הערה) → inbox, המחשב מעכל. חוטים מקופלים
+  // (ישנים/טופלו) נשארים קריאה-בלבד: ctx.interactive=false.
+  if (!ctx || !ctx.interactive) return row;
+
+  const already = (ctx.decided || {})[it.id];
+  if (already) {
+    row.appendChild(mk("span", "locked-tag", "נרשם: " + (already.verdict === "yes" ? "השאר" : "ארכב")
+      + (already.note ? " · " + already.note : "") + " · ממתין לעיבוד"));
+    return row;
   }
+
+  const ta = mk("textarea", "ta-remark ta-grow"); ta.placeholder = "הערה (לא חובה)…"; ta.rows = 1;
+  const d0 = readJSON(DRAFT_KEY, {}); if (d0[it.id]) ta.value = d0[it.id];
+  ta.addEventListener("input", () => {
+    autoGrow(ta);
+    const m = readJSON(DRAFT_KEY, {}); if (ta.value.trim()) m[it.id] = ta.value; else delete m[it.id]; writeJSON(DRAFT_KEY, m);
+  });
+  row.appendChild(ta); setTimeout(() => autoGrow(ta), 0);
+  const micRow = mk("div", "rec-row"); micRow.appendChild(micButton(ta)); row.appendChild(micRow);
+
+  const btnRow = mk("div", "eng-yn");
+  const keep = mk("button", "yes", "השאר ✓"); keep.type = "button";
+  const arch = mk("button", "no", "ארכב ✗"); arch.type = "button";
+  keep.addEventListener("click", () => submitDecision(it, "yes", ta.value, ctx, row, [keep, arch]));
+  arch.addEventListener("click", () => submitDecision(it, "no", ta.value, ctx, row, [keep, arch]));
+  btnRow.appendChild(keep); btnRow.appendChild(arch); row.appendChild(btnRow);
   return row;
 }
 
 function renderLoom(container, data, opts) {
   const demo = !!(opts && opts.demo);
+  const token = opts && opts.token;
   container.innerHTML = "";
   const counts = data.counts || {};
   const cards = data.cards || [];
+  const ctx = { token, demo, decided: readJSON(DECIDED_KEY, {}), interactive: true };
 
   const sh = mk("div", "shead");
   sh.appendChild(mk("span", "over", "הנול"));
   sh.appendChild(mk("span", "line"));
-  sh.appendChild(mk("span", "thr-count", cards.length ? String(cards.length) : "✓"));
   container.appendChild(sh);
   if (data.updatedAt) container.appendChild(mk("p", "eng-scan", fmtStamp(data.updatedAt)));
-  container.appendChild(loomCountsStrip(counts));
 
   if (!cards.length) {
-    container.appendChild(mk("div", "card empty", "אין חוטים לקריאה כרגע."));
+    container.appendChild(mk("div", "card empty", "אין חוטים כרגע."));
     if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה."));
     return;
   }
 
-  const search = mk("input"); search.type = "text"; search.className = "tag-in";
-  search.placeholder = "חיפוש בחוטים…"; search.style.margin = "10px 0";
-  container.appendChild(search);
+  // 22/07 (משוב אסף): שלוש קבוצות - דורשי-הכרעה בראש (אינטראקטיביים), ישנים
+  // וטופלו מקופלים. במקום "long board" של 199 קריאה-בלבד.
+  const life = (c) => (c.stations || {}).lifecycle;
+  const stat = (c) => (c.relevance || {}).status;
+  const isPending = (c) => c.focus || life(c) === "warn" || life(c) === "bad" || stat(c) === "needs";
+  const isStale = (c) => !isPending(c) && stat(c) === "stale";
+  const pending = cards.filter(isPending);
+  const stale = cards.filter(isStale);
+  const done = cards.filter((c) => !isPending(c) && !isStale(c));
 
-  const list = mk("div", "thr-list");
-  container.appendChild(list);
+  const hd = mk("p", "hint"); hd.style.fontWeight = "600"; hd.style.marginTop = "8px";
+  hd.textContent = "דורשים הכרעה · " + pending.length;
+  container.appendChild(hd);
+  const list = mk("div", "thr-list"); container.appendChild(list);
+  if (pending.length) pending.forEach((c) => { try { list.appendChild(renderLoomItem(c, ctx)); } catch (e) { list.appendChild(mk("div", "thr err-msg", "כרטיס לא תקין")); } });
+  else list.appendChild(mk("div", "card empty", "אין חוטים שדורשים הכרעה. הכל זורם."));
 
-  function paint(filterText) {
-    list.innerHTML = "";
-    const q = (filterText || "").trim().toLowerCase();
-    const filtered = !q ? cards : cards.filter((c) => {
-      const hay = [c.title, c.vault, c.relevance && c.relevance.reason, c.stations && c.stations.lifecycleNote]
-        .filter(Boolean).join(" ").toLowerCase();
-      return hay.includes(q);
-    });
-    if (!filtered.length) { list.appendChild(mk("div", "card empty", "אין תוצאות לחיפוש.")); return; }
-    filtered.forEach((c) => {
-      try { list.appendChild(renderLoomItem(c)); }
-      catch (e) { list.appendChild(mk("div", "thr err-msg", "כרטיס לא תקין: " + (e.message || ""))); }
-    });
-  }
-  search.addEventListener("input", () => paint(search.value));
-  paint("");
-
-  const foot = "קריאה בלבד · הכרעות נעשות בלוח ובמעבר-העיניים למעלה" +
-    (counts.hiddenSensitive ? " · " + counts.hiddenSensitive + " חוטים רגישים לא יוצאים מהמכונה" : "");
-  container.appendChild(mk("p", "hint", foot));
+  const foldGroup = (title, arr) => {
+    if (!arr.length) return;
+    const det = document.createElement("details"); det.style.marginTop = "12px";
+    const sm = mk("summary", null, title + " · " + arr.length);
+    sm.style.cursor = "pointer"; sm.style.color = "var(--txt-m)"; sm.style.padding = "8px 2px";
+    det.appendChild(sm);
+    const l = mk("div", "thr-list"); arr.forEach((c) => { try { l.appendChild(renderLoomItem(c, { interactive: false })); } catch (e) {} }); det.appendChild(l);
+    container.appendChild(det);
+  };
+  foldGroup("ישנים · שקול לארכב", stale);
+  foldGroup("בצינור / טופלו", done);
+  if (counts.hiddenSensitive) container.appendChild(mk("p", "hint", counts.hiddenSensitive + " חוטים רגישים לא יוצאים מהמכונה"));
   if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה."));
 }
 
@@ -638,7 +658,7 @@ export async function loadLoom(token, container) {
     return;
   }
 
-  renderLoom(container, data, { demo: false });
+  renderLoom(container, data, { demo: false, token });
 }
 
 // ---------- demo (no auth) ----------
