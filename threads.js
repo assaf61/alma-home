@@ -15,7 +15,7 @@
 //     triage_bucket / priority / timing / domain_tag   (only when set)
 import { listInbox, getFileText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
-import { toast, onTap } from "./ui.js";
+import { toast, onTap, startDictation } from "./ui.js";
 
 // Three-dome model (Assaf 24/06: "moving from nine vaults to three"). The old
 // 9 per-domain vaults collapse into ONE private working dome (Alma.R); the domain
@@ -329,22 +329,14 @@ function speak(txt) {
 // ---------- dictate into the remark (Hebrew speech-to-text) ----------
 // Keeps the decision durable as TEXT in the file (no orphaned audio binary),
 // matching Assaf's existing Hebrew voice-typing workflow.
-let recog = null;
+// mic-v2 (23/07): הלוגיקה המרכזית ב-ui.js (התנעה-מחדש אוטומטית, ביניים, שמירת-נקלט).
+let dict = null;
 function toggleDictate(ta, btn) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast("הכתבה לא נתמכת בדפדפן הזה"); return; }
-  if (recog) { recog.stop(); return; }
-  recog = new SR(); recog.lang = "he-IL"; recog.interimResults = false; recog.continuous = true;
-  const base = ta.value ? ta.value + " " : "";
-  let acc = "";
-  recog.onresult = (e) => {
-    acc = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) acc += e.results[i][0].transcript;
-    ta.value = base + acc;
-  };
-  recog.onerror = () => { toast("שגיאת הכתבה"); };
-  recog.onend = () => { recog = null; btn.classList.remove("on"); btn.textContent = "🎤 הכתב הערה"; };
-  recog.start(); btn.classList.add("on"); btn.textContent = "⏹ עצור הכתבה";
+  if (dict) { dict.stop(); dict = null; return; }
+  dict = startDictation(ta, (on) => {
+    if (on) { btn.classList.add("on"); btn.textContent = "⏹ עצור הכתבה"; }
+    else { dict = null; btn.classList.remove("on"); btn.textContent = "🎤 הכתב הערה"; }
+  });
 }
 
 // ---------- demo (local dev, no auth) ----------

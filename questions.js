@@ -10,7 +10,7 @@
 // add them manually here.
 import { getDrivePathText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
-import { toast, micButton, onTap } from "./ui.js";
+import { toast, micButton, onTap, startDictation } from "./ui.js";
 
 const PRIOS = [["p1", "P1 גבוה"], ["p2", "P2 בינוני"], ["p3", "P3 נמוך"]];
 const TIMES = [["now", "עכשיו"], ["soon", "קרוב"], ["later", "מאוחר"], ["someday", "יום אחד"]];
@@ -144,17 +144,14 @@ function speak(txt) {
   u.onend = () => { speaking = false; };
   speaking = true; speechSynthesis.speak(u);
 }
-let recog = null;
+// mic-v2 (23/07): הלוגיקה המרכזית ב-ui.js (התנעה-מחדש אוטומטית, ביניים, שמירת-נקלט).
+let dict = null;
 function toggleDictate(ta, btn) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast("הכתבה לא נתמכת בדפדפן הזה"); return; }
-  if (recog) { recog.stop(); return; }
-  recog = new SR(); recog.lang = "he-IL"; recog.continuous = true; recog.interimResults = false;
-  const base = ta.value ? ta.value + " " : "";
-  recog.onresult = (e) => { let acc = ""; for (let i = e.resultIndex; i < e.results.length; i++) acc += e.results[i][0].transcript; ta.value = base + acc; };
-  recog.onerror = () => toast("שגיאת הכתבה");
-  recog.onend = () => { recog = null; btn.classList.remove("on"); btn.textContent = "🎤 הכתב תשובה"; };
-  recog.start(); btn.classList.add("on"); btn.textContent = "⏹ עצור";
+  if (dict) { dict.stop(); dict = null; return; }
+  dict = startDictation(ta, (on) => {
+    if (on) { btn.classList.add("on"); btn.textContent = "⏹ עצור"; }
+    else { dict = null; btn.classList.remove("on"); btn.textContent = "🎤 הכתב תשובה"; }
+  });
 }
 
 function header(container, openN) {
