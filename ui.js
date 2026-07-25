@@ -7,7 +7,7 @@ import { kvGet, kvSet } from "./queue.js";
 
 // גרסה גלויה (25/07): "נדחף" ו"מוגש" ו"מגיע לטלפון" הן שלוש טענות נפרדות. הבאדג'
 // בתחתית עמוד-המענה הופך את השלישית לניתנת-לבדיקה בהצצה אחת, בלי לנחש.
-export const APP_VERSION = "v33 · mic-19/07";
+export const APP_VERSION = "v34 · mic-nodup";
 let toastEl = null;
 let toastTimer = null;
 
@@ -114,12 +114,11 @@ export function startDictation(target, onState) {
   flushPendingVoices();   // ניקוז חד-כיווני: הקלטות v4 שנתקעו במכשיר יוצאות, בלי חדשות
 
   const session = { active: true, recog: null };
-  // committed = מה שהיה בשדה לפני הלחיצה; finals = מה שהזיהוי סגר סופית;
-  // interim = מה שנאמר ברגע זה. שלושתם מורכבים מחדש בכל אירוע, ולכן התנעה-מחדש
-  // אחרי שתיקה לא כופלת ולא מוחקת - הבאג שהפיל את v2/v3.
-  let committed = target.value || "", finals = "";
-  const compose = (interim) => {
-    const txt = [committed, finals, interim || ""].filter((x) => x && x.trim()).join(" ").replace(/\s+/g, " ");
+  // carried = מה שהיה בשדה לפני הלחיצה + מה שנצבר מהתנעות קודמות.
+  // sessionText = כל מה שהזיהוי הנוכחי מחזיק, ונבנה מחדש מאפס בכל אירוע.
+  let carried = target.value || "", sessionText = "";
+  const compose = () => {
+    const txt = [carried, sessionText].filter((x) => x && x.trim()).join(" ").replace(/\s+/g, " ").trim();
     target.value = txt;
     liveDraft.set(target, txt); saveLastDraft(txt);
     try { target.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
@@ -128,14 +127,22 @@ export function startDictation(target, onState) {
   const start = () => {
     const r = new SR(); session.recog = r;
     r.lang = "he-IL"; r.continuous = true; r.interimResults = true;
+    // שורש הבאג שקבר את ההודעות של אסף (נצפה 25/07 10:45, שוחזר במעבדה): המנוע
+    // הקודם קרא מ-ev.resultIndex והוסיף (+=) לצובר. אנדרואיד מחזיר resultIndex=0
+    // בזמן ש-ev.results מצטבר, ולכן כל אירוע הוסיף שוב את כל מה שכבר נאמר -
+    // "בבקשה", "בבקשה בבקשה התקדם", "בבקשה בבקשה התקדם בבקשה התקדם עם"...
+    // התיקון: לא לצבור לעולם. לבנות את התמליל מחדש מכל ev.results בכל אירוע.
+    // הפעולה אידמפוטנטית: אותו קלט תמיד נותן אותו טקסט, לא משנה כמה פעמים יגיע.
     r.onresult = (ev) => {
-      let interim = "";
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      let fin = "", interim = "";
+      for (let i = 0; i < ev.results.length; i++) {
         const res = ev.results[i];
-        if (res.isFinal) finals = (finals ? finals + " " : "") + res[0].transcript.trim();
-        else interim += res[0].transcript;
+        const t = (res[0] && res[0].transcript) || "";
+        if (res.isFinal) fin += (fin ? " " : "") + t.trim();
+        else interim += t;
       }
-      compose(interim);
+      sessionText = [fin, interim].filter((x) => x && x.trim()).join(" ");
+      compose();
     };
     r.onerror = (ev) => {
       const code = (ev && ev.error) || "";
@@ -147,10 +154,16 @@ export function startDictation(target, onState) {
     };
     r.onend = () => {
       session.recog = null;
+      // ההתנעה הבאה מתחילה עם ev.results ריק, ולכן מה שנצבר בסשן הזה חייב לעבור
+      // ל-carried לפני שהוא מתאפס. בלי זה כל שתיקה הייתה מוחקת את מה שנאמר עד כה.
+      if (sessionText && sessionText.trim()) {
+        carried = [carried, sessionText].filter((x) => x && x.trim()).join(" ").replace(/\s+/g, " ").trim();
+      }
+      sessionText = "";
       if (session.active) {
         try { start(); return; } catch (_) { session.active = false; }
       }
-      compose("");
+      compose();
       if (onState) onState(false);
     };
     r.start();
@@ -158,8 +171,8 @@ export function startDictation(target, onState) {
 
   session.stop = function () {
     this.active = false;
-    if (this.recog) { try { this.recog.stop(); } catch (_) { compose(""); if (onState) onState(false); } }
-    else { compose(""); if (onState) onState(false); }
+    if (this.recog) { try { this.recog.stop(); } catch (_) { compose(); if (onState) onState(false); } }
+    else { compose(); if (onState) onState(false); }
     // "כשל מדבר": אחרי עצירה אסף יודע מיד אם נקלט משהו או שהוא דיבר לחלל.
     setTimeout(() => toast(target.value && target.value.trim() ? "נקלט ✓ · אפשר לערוך" : "לא נקלט דבר · בדוק הרשאת מיקרופון ונסה שוב"), 60);
   };
