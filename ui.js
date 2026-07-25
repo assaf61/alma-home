@@ -39,14 +39,22 @@ export function speak(txt) {
   speaking = true; speechSynthesis.speak(u);
 }
 
+// ---------- persistent dictation draft (mic-v3, 25/07: "הודעה לא יכולה לעוף") ----------
+// כל מילה שמזוהה נשמרת מיד: בזיכרון (לכל שדה בנפרד, לשחזור מיידי כשהמיקרופון נקטע)
+// וגם ל-localStorage כחוצץ "אחרון" (רשת-ביטחון לשחזור ידני גם אחרי קריסת-טאב).
+// שמירה מבודדת פר-שדה (WeakMap) - אין דליפה של הודעה מכרטיס אחד לאחר.
+const liveDraft = new WeakMap();
+function saveLastDraft(txt) { try { localStorage.setItem("ah-draft:last", JSON.stringify({ t: txt, at: Date.now() })); } catch (_) {} }
+// שליפת ההודעה האחרונה שנקלטה בכל שדה שהוא - רשת-הביטחון האחרונה לשחזור ידני.
+export function recoverLastDraft() { try { const o = JSON.parse(localStorage.getItem("ah-draft:last") || "null"); return (o && o.t) || ""; } catch (_) { return ""; } }
+
 // ---------- voice dictation into a field (Hebrew speech-to-text) ----------
-// mic-v2 (23/07, תיקון answering-page-mic-defect): שלושה כשלים בגרסה הישנה איבדו
-// לאסף הודעות שלמות - (א) אנדרואיד סוגר האזנה אחרי שתיקה קצרה גם עם continuous,
-// והוא נאלץ ללחוץ שוב ושוב; (ב) בלי interimResults התמלול נמסר רק בסוף, ושגיאת
-// no-speech/network מחקה הכל; (ג) עצירה לא-רצונית לא הובחנה מעצירת-משתמש.
-// התיקון: הקלטה נמשכת עד שהמשתמש עוצר (התנעה-מחדש אוטומטית ב-onend), תמלול-ביניים
-// נכתב לשדה בזמן-אמת (וכך נשמר כטיוטה דרך אירוע input), ושגיאות עצירות רק אחרי
-// 4 כשלים רצופים בלי תוצאה או שגיאת-הרשאה קשה.
+// mic-v3 (25/07, answering-page-mic-defect שחזר על אנדרואיד אחרי v2): v2 התניע
+// מחדש מיד ב-onend, אבל באנדרואיד המיקרופון לא הספיק להשתחרר ולהיתפס - נוצרה
+// לולאה שבה הכפתור "דלוק" אך לא נקלט דבר, והודעה שלמה אבדה. התיקון: (א) השהיה
+// זעירה בהתנעה-מחדש כדי שהמיקרופון ייתפס נקי, עם ניסיון-חוזר בגיבוי; (ב) שגיאות
+// no-speech/aborted (שגרתיות בין התנעות) לא נספרות ככשל ולא מפילות; (ג) כל מה
+// שנקלט נשמר חי (WeakMap + localStorage) וניתן לשחזור אם ההקלטה נקטעה.
 export function startDictation(target, onState) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast("הכתבה לא נתמכת בדפדפן הזה"); return null; }
@@ -56,7 +64,7 @@ export function startDictation(target, onState) {
     errors: 0,
     stop() { this.wantOn = false; if (this.recog) { try { this.recog.stop(); } catch (_) {} } },
   };
-  const write = (txt) => { target.value = txt; target.dispatchEvent(new Event("input")); };
+  const write = (txt) => { target.value = txt; liveDraft.set(target, txt); saveLastDraft(txt); target.dispatchEvent(new Event("input")); };
   const run = () => {
     const r = new SR(); session.recog = r;
     r.lang = "he-IL"; r.continuous = true; r.interimResults = true;
@@ -74,20 +82,30 @@ export function startDictation(target, onState) {
     };
     r.onerror = (e) => {
       const code = (e && e.error) || "";
+      // no-speech/aborted הם שגרתיים באנדרואיד בין התנעות - לא נספרים ככשל ולא מפילים.
+      if (code === "no-speech" || code === "aborted") return;
       const fatal = code === "not-allowed" || code === "service-not-allowed" || code === "audio-capture";
       session.errors++;
-      if (fatal || session.errors >= 4) {
+      if (fatal || session.errors >= 5) {
         session.wantOn = false;
         toast("שגיאת הכתבה" + (code ? " (" + code + ")" : "") + " · מה שנקלט נשמר בשדה");
       }
     };
     r.onend = () => {
       session.recog = null;
-      if (session.wantOn) {
-        // סגירה שקטה של הדפדפן (שתיקה) - לא עצירת משתמש: ממשיכים להאזין.
-        try { run(); return; } catch (_) { session.wantOn = false; }
-      }
-      if (onState) onState(false);
+      if (!session.wantOn) { if (onState) onState(false); return; }
+      // סגירה שקטה של הדפדפן (שתיקה) - לא עצירת משתמש: ממשיכים להאזין.
+      // באנדרואיד השהיה זעירה נותנת למיקרופון להשתחרר ולהיתפס מחדש נקי, ומונעת
+      // לולאת-התנעה-חנוקה שבה המיקרופון "דלוק" אך לא קולט דבר (וכך אבדו הודעות).
+      const restart = (delay, lastTry) => setTimeout(() => {
+        if (!session.wantOn) { if (onState) onState(false); return; }
+        try { run(); }
+        catch (_) {
+          if (lastTry) { session.wantOn = false; toast("ההקלטה נעצרה · הטקסט נשמר בשדה, לחץ להמשיך"); if (onState) onState(false); }
+          else restart(400, true);
+        }
+      }, delay);
+      restart(150, false);
     };
     r.start();
   };
@@ -107,6 +125,12 @@ export function micButton(target, opts = {}) {
   let session = null;
   btn.addEventListener("click", () => {
     if (session) { session.stop(); session = null; return; }
+    // אם השדה ריק אבל נקלטה בו הודעה שנקטעה (מיקרופון שמת) - משחזרים אותה לפני שממשיכים.
+    // WeakMap פר-שדה: משחזר רק את ההודעה של השדה הזה עצמו, בלי לדלוף מכרטיס אחר.
+    if (!target.value) {
+      const d = liveDraft.get(target);
+      if (d) { target.value = d; liveDraft.set(target, d); target.dispatchEvent(new Event("input")); toast("שוחזרה טיוטה שנקטעה"); }
+    }
     session = startDictation(target, (on) => {
       if (on) { btn.classList.add("on"); btn.textContent = "⏹"; }
       else { session = null; btn.classList.remove("on"); btn.textContent = "🎤"; }
