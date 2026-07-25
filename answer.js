@@ -7,6 +7,7 @@
 import { getDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { renderAwaitingSection, localDecided } from "./engine.js";
+import { APP_VERSION } from "./ui.js";
 
 function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 
@@ -73,6 +74,8 @@ function renderPage(container, board, token, opts) {
   const foot = mk("p", "hint");
   const a = mk("a", null, "חדר המכונות המלא ←"); a.href = "#engine";
   foot.appendChild(a);
+  // באדג'-גרסה (25/07): הופך את "האם התיקון הגיע לטלפון" מניחוש לבדיקה בהצצה.
+  foot.appendChild(mk("span", null, " · " + APP_VERSION));
   container.appendChild(foot);
   if (demo) container.appendChild(mk("p", "hint", "מצב הדגמה - שינויים מקומיים בלבד, ללא כתיבה ל-OneDrive."));
 }
