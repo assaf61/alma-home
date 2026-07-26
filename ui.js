@@ -116,7 +116,11 @@ export function startDictation(target, onState) {
   const session = { active: true, recog: null };
   // carried = מה שהיה בשדה לפני הלחיצה + מה שנצבר מהתנעות קודמות.
   // sessionText = כל מה שהזיהוי הנוכחי מחזיק, ונבנה מחדש מאפס בכל אירוע.
-  let carried = target.value || "", sessionText = "";
+  let carried = target.value || "", sessionText = "", sessionFinal = "";
+  // בלם סחרור-התנעות (26/07): אנדרואיד סוגר זיהוי תוך שבריר שנייה כשאין דיבור,
+  // והתנעה מיידית בתוך onend מייצרת לולאה שחותכת את המשפט באמצע. ספירת התנעות
+  // בחלון קצר עוצרת את הלולאה במקום להילחם בה.
+  let restarts = 0, restartWindow = 0;
   const compose = () => {
     const txt = [carried, sessionText].filter((x) => x && x.trim()).join(" ").replace(/\s+/g, " ").trim();
     target.value = txt;
@@ -141,6 +145,9 @@ export function startDictation(target, onState) {
         if (res.isFinal) fin += (fin ? " " : "") + t.trim();
         else interim += t;
       }
+      // 26/07: הפרדה בין סופי לביניים. הביניים מוצג לאסף תוך כדי, אבל רק הסופי
+      // עובר ל-carried בהתנעה מחדש - ראה onend.
+      sessionFinal = fin;
       sessionText = [fin, interim].filter((x) => x && x.trim()).join(" ");
       compose();
     };
@@ -156,12 +163,30 @@ export function startDictation(target, onState) {
       session.recog = null;
       // ההתנעה הבאה מתחילה עם ev.results ריק, ולכן מה שנצבר בסשן הזה חייב לעבור
       // ל-carried לפני שהוא מתאפס. בלי זה כל שתיקה הייתה מוחקת את מה שנאמר עד כה.
-      if (sessionText && sessionText.trim()) {
-        carried = [carried, sessionText].filter((x) => x && x.trim()).join(" ").replace(/\s+/g, " ").trim();
+      // 26/07, שורש הכפילות שנשארה בטלפון: כאן עבר sessionText, שמכיל גם תמלול
+      // ביניים. הזיהוי הבא מקבל את אותו קטע אודיו ומחזיר אותו שוב כסופי, ואז
+      // אותן מילים יושבות פעמיים. carried מקבל מעכשיו רק את מה שהמנוע סימן כסופי.
+      if (sessionFinal && sessionFinal.trim()) {
+        carried = [carried, sessionFinal].filter((x) => x && x.trim()).join(" ").replace(/\s+/g, " ").trim();
       }
-      sessionText = "";
+      sessionText = ""; sessionFinal = "";
       if (session.active) {
-        try { start(); return; } catch (_) { session.active = false; }
+        // 26/07, שורש ה"חותך את עצמו": r.start() סינכרוני בתוך onend נכשל או
+        // נסגר מיד באנדרואיד. השהיה קצרה נותנת למנוע להשתחרר, והבלם עוצר סחרור.
+        const nowMs = Date.now();
+        if (nowMs - restartWindow > 10000) { restartWindow = nowMs; restarts = 0; }
+        restarts++;
+        if (restarts > 8) {
+          session.active = false;
+          compose(); if (onState) onState(false);
+          toast("הזיהוי לא מצליח להישאר פתוח · נסה שוב, או בדוק חיבור");
+          return;
+        }
+        setTimeout(() => {
+          if (!session.active) { compose(); if (onState) onState(false); return; }
+          try { start(); } catch (_) { session.active = false; compose(); if (onState) onState(false); }
+        }, 250);
+        return;
       }
       compose();
       if (onState) onState(false);
