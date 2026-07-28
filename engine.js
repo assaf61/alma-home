@@ -41,7 +41,7 @@ function clearDraft(id) {
 
 // ---------- "המכונה בהישג יד" (v1, הועבר משם ללא שינוי התנהגות) ----------
 const ENGINE_LOCAL = "http://127.0.0.1:8861";
-const ENGINE_PIPE = "http://almapm.tailfd019a.ts.net";
+export const ENGINE_PIPE = "http://almapm.tailfd019a.ts.net";
 // בסיס לפתיחת החדר-החי: localhost כשעל המכונה, הצינור אחרת. brief.js (urgent-treat)
 // מייבא את זה דינמית. משטח-הקידום עצמו לא צריך אותו - הוא קורא מהענן.
 export async function engineBase() {
@@ -52,6 +52,17 @@ export async function engineBase() {
   } catch { /* not on the machine */ }
   return ENGINE_PIPE;
 }
+// קישור אמיתי במקום window.open: ניווט טבעי לעולם לא נחסם בדפדפן נייד, וכשהיעד
+// אינו נגיש הדפדפן מציג שגיאה משלו במקום טאב ריק ושקט. זה השורש של "דף מת" (28/07).
+export function roomLink(base, label) {
+  const a = mk("a", "btn-primary");
+  a.textContent = label;
+  a.href = base + "/hub";
+  a.target = "_blank"; a.rel = "noopener";
+  a.style.display = "inline-block"; a.style.textDecoration = "none";
+  return a;
+}
+
 export async function renderLocalReach(container) {
   container.innerHTML = "";
   const box = mk("div", "card");
@@ -73,13 +84,17 @@ export async function renderLocalReach(container) {
   status.remove();
   if (up) {
     const p = mk("p", "muted"); p.textContent = "המכונה בהישג יד. הדלפק, הלוח וההכרעות הנעולות - בלחיצה אחת.";
-    const b = mk("button", "btn-primary"); b.textContent = "פתח את חדר המכונות";
-    b.addEventListener("click", () => window.open(ENGINE_LOCAL + "/hub", "_blank", "noopener"));
-    box.appendChild(p); box.appendChild(b);
+    box.appendChild(p); box.appendChild(roomLink(ENGINE_LOCAL, "פתח את חדר המכונות"));
   } else {
+    // 28/07: הענף הזה היה מבוי סתום - הודיע "אין קו ישיר" ולא נתן שום דלת, כי הבדיקה
+    // נעשית רק מול 127.0.0.1 שלא קיים בטלפון. הצינור הפרטי כן פתוח, ואי אפשר לבדוק
+    // אותו מכאן (בית עלמא ב-https, הצינור ב-http, והדפדפן חוסם בדיקה כזו) - אז במקום
+    // לנחש, נותנים קישור אמיתי ואומרים במפורש מה הוא דורש.
     const p1 = mk("p", "muted");
-    p1.textContent = "חדר-המכונות רץ על המכונה בבית וסגור לרשת מטעמי אבטחה, אז מהמכשיר הזה אין קו ישיר.";
+    p1.textContent = "חדר-המכונות רץ על המכונה בבית וסגור לרשת. מהמכשיר הזה אין קו ישיר, אבל הצינור הפרטי פתוח:";
     box.appendChild(p1);
+    box.appendChild(roomLink(ENGINE_PIPE, "פתח דרך הצינור הפרטי"));
+    box.appendChild(mk("p", "hint", ENGINE_PIPE.replace(/^https?:\/\//, "") + " · דורש שה-Tailscale בטלפון יהיה מחובר"));
   }
 }
 

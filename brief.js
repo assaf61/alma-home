@@ -7,6 +7,7 @@
 //   - take data live (no embedded encrypted payload / forge)
 import { CONFIG } from "./config.js";
 import { getDrivePathText } from "./graph.js";
+import { ENGINE_PIPE } from "./engine.js";
 
 const LOGO = "./alma-enso.jpg";
 
@@ -153,13 +154,25 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
         const det = mk("div", "urgent-det"); det.hidden = true;
         if (u.body) det.appendChild(mk("p", "muted", u.body));
         const actRow = mk("div", "ub-actions");
-        const treat = mk("button", "btn-primary ub-treat", "טפל בזה ←"); treat.type = "button";
-        treat.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (u.url) { window.open(u.url, "_blank", "noopener"); return; }
-          import("./engine.js").then((m) => m.engineBase().then((b) => window.open(b + "/hub", "_blank", "noopener")));
-        });
+        // 28/07 (תלונת אסף "לוחץ על מחבר ומגיע לדף מת, בלי אפילו שגיאה"): הכפתור
+        // קרא ל-window.open אחרי import ו-await. דפדפני נייד חוסמים בשקט פתיחת חלון
+        // שאינה בתוך הלחיצה עצמה, ולכן שום דבר לא קרה ושום שגיאה לא הוצגה.
+        // עכשיו זה קישור אמיתי: ניווט טבעי שלא נחסם. יעד ברירת-המחדל הוא חדר-המכונות
+        // שבתוך האפליקציה (#engine), שנטען מהענן ולכן תמיד נראה מהטלפון.
+        const treat = mk("a", "btn-primary ub-treat", "טפל בזה ←");
+        treat.href = u.url || "#engine";
+        if (u.url) { treat.target = "_blank"; treat.rel = "noopener"; }
+        treat.style.display = "inline-block"; treat.style.textDecoration = "none";
+        treat.addEventListener("click", (e) => e.stopPropagation());
         actRow.appendChild(treat);
+        if (!u.url) {
+          const room = mk("a", "btn-ghost ub-room", "חדר המכונות המלא ←");
+          room.href = ENGINE_PIPE + "/hub"; room.target = "_blank"; room.rel = "noopener";
+          room.title = "דרך הצינור הפרטי · דורש Tailscale מחובר";
+          room.style.display = "inline-block"; room.style.textDecoration = "none";
+          room.addEventListener("click", (e) => e.stopPropagation());
+          actRow.appendChild(room);
+        }
         const demote = mk("button", "btn-ghost ub-demote", "לא עוצר-יום · הורד"); demote.type = "button";
         demote.addEventListener("click", (e) => {
           e.stopPropagation();
