@@ -6,3 +6,6 @@ brief-*.json
 *.bak-*
 .DS_Store
 Thumbs.db
+# ספירלת-הלמידה היא לוגיקה פנימית של המכונה - לא חלק מהכלי הציבורי
+LESSONS.md
+_travel-test.html

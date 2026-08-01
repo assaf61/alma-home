@@ -100,7 +100,7 @@ details { border-top: 1px solid var(--border); }
 details summary { cursor: pointer; list-style: none; padding: 9px 0 7px; font-size: .85rem; font-weight: 600; color: var(--acc-d); display: flex; align-items: center; gap: 7px; }
 details summary::-webkit-details-marker { display: none; }
 details summary::before { content: "+"; font-weight: 700; width: 12px; display: inline-block; }
-details[open] summary::before { content: "−"; }
+details[open] summary::before { content: "\2212"; }
 details .dtxt, details ul { padding: 0 0 10px; font-size: .9rem; color: var(--txt-m); }
 details ul { list-style: none; }
 details ul li { padding: 3px 0; }
@@ -125,7 +125,7 @@ details ul li { padding: 3px 0; }
 .brief-budget { margin: 10px 0 0; padding: 9px 14px; border-radius: var(--r-m); font-size: .85rem; font-weight: 600; text-align: center; }
 .brief-budget.warn { background: var(--wrn-l); color: var(--wrn-d); }
 .brief-budget.out { background: var(--err-l); color: var(--err-d); }
-/* budget alert (your-control model, 30/06): a slow, unmissable pulse (1.15s — a
+/* budget alert (your-control model, 30/06): a slow, unmissable pulse (1.15s - a
    gentle opacity breathe, NOT a harsh strobe) so the 80% warning grabs attention
    on the cockpit instead of hiding in a log file. Mirrored as a header chip
    (.chip.budget) that shows on EVERY tab, so you catch it and top up in time. */
@@ -339,6 +339,13 @@ details ul li { padding: 3px 0; }
 .cap-btn .cap-ico { font-size: 2rem; line-height: 1; }
 .cap-btn .cap-lbl { font-size: .95rem; font-weight: 600; color: var(--txt-x); }
 
+/* צופה-הגרפים של מהדורת-שבת (01/08): שכבה מלאה מעל האפליקציה, מובייל ודסקטופ */
+.graphs-overlay { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; }
+.graphs-bar { display: flex; align-items: center; gap: 12px; padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; border-bottom: 1px solid var(--border); }
+.graphs-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.graphs-frame { flex: 1; width: 100%; border: 0; background: var(--bg); }
+.graphs-cta { width: 100%; text-align: right; }
+
 .cap-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
 .cap-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
 .cap-sheet, .cap-menu, .cap-rec {
@@ -464,3 +471,72 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .eng-tier { flex: 0 0 auto; font-size: .64rem; font-weight: 600; border-radius: var(--r-f); padding: 2px 9px; color: var(--acc-d); background: var(--acc-l); }
 .eng-tier.t1 { color: var(--err-d); background: var(--err-l); }
 .eng-tier.t4 { color: var(--txt-m); background: var(--bg); border: 1px solid var(--border); }
+
+/* ---------- מסך רחב (דסקטופ, >=900px): אותו מנוע, שני חלונות (31/07/2026).
+   כל כלל כאן חי מאחורי הסף - מתחתיו (מובייל, אנכי צר) אפס שינוי חזותי: שום
+   כלל למעלה בקובץ לא נגוע, ושום כלל כאן לא דולף החוצה. בסיס-ה-RTL קבוע
+   (html dir="rtl"): "התחלה" = ימין, "סוף" = שמאל. פס-הצד (היה bottom-nav)
+   יושב פיזית בימין; התוכן (.strip + .content) מתחיל לצידו - כלומר משמאלו. ---------- */
+@media (min-width: 900px) {
+  :root { --nav-w: 116px; --content-w: 1040px; }
+
+  html { font-size: 17px; } /* סולם-הטוקנים הקיים גדל במקצת, פרופורציונלית (rem) */
+
+  body {
+    max-width: none;
+    padding-right: var(--nav-w);
+    padding-bottom: var(--sp-6);
+  }
+
+  /* ---- פס-הצד: אותו bottom-nav בדיוק (אותם data-route, אותם class) - רק
+     מסודר אנכית ומוצמד לימין במקום פס אופקי תחתון. ---- */
+  .bottom-nav {
+    position: fixed; top: 0; bottom: 0; right: 0; left: auto;
+    max-width: none; width: var(--nav-w); margin: 0;
+    flex-direction: column; justify-content: flex-start; align-items: stretch;
+    gap: var(--sp-2);
+    padding: var(--sp-8) var(--sp-2) var(--sp-4);
+    border-top: 0; border-left: 1px solid var(--border);
+  }
+  .nav-btn { flex: 0 0 auto; min-height: 60px; padding: 12px 6px; font-size: .78rem; gap: 6px; }
+  .nav-btn svg { width: 26px; height: 26px; }
+
+  /* ---- כותרת + תוכן: נצמדים לצד פס-הצד (ימין), לא ממורכזים בעמוד. ---- */
+  .strip, .content {
+    max-width: var(--content-w);
+    margin-inline-start: 0; margin-inline-end: auto;
+  }
+  .content { padding: var(--sp-4) var(--sp-8) var(--sp-10); }
+
+  /* כפתור "הקרא לי" הצף (read-aloud-neural.js קפוא בהוראה מפורשת - זו דריסת
+     CSS בלבד כאן ב-app.css, בלי לגעת בקובץ עצמו) זז שמאלה כך שלא ייבלע מתחת
+     לפס-הצד החדש. !important כי הסקריפט מזריק את ה-style שלו ל-head בזמן
+     ריצה אחרי app.css - סדר-מקור לבדו לא מבטיח שהדריסה כאן תנצח. */
+  .ra-bar { inset-inline-start: calc(var(--nav-w) + 18px) !important; }
+
+  .toast { left: calc(50% + var(--nav-w) / 2); }
+
+  /* ---- הבריף: אותו DOM בדיוק כמו במובייל (אין הזזה של אף אלמנט) - רק
+     grid-column על מה שכבר קיים. "הקופסאות" (class="sec-boxes", עוגן יחיד
+     שנוסף ב-brief.js) עוברות לטור המשני יחד עם "מאז שקראת"; כותרת/דמו/חירום/
+     חותמת/רענון/תקציב/"המשך מכאן"/סיום פרוסים לרוחב מלא; שאר הסקשנים (היום,
+     קרוב, מהדורה/גוף, מייל, שירותים, כדאי-לא-כדאי) נשארים בטור הקריאה הראשי. */
+  .brief-surface {
+    display: grid;
+    grid-template-columns: minmax(0, 68ch) minmax(240px, 320px);
+    column-gap: var(--sp-8);
+    align-items: start;
+  }
+  .brief-surface > section { grid-column: 1; }
+  .brief-surface > section.sec-boxes { grid-column: 2; }
+  .brief-surface > .resume,
+  .brief-surface > .brief-head,
+  .brief-surface > .demo-banner,
+  .brief-surface > .urgent-strip,
+  .brief-surface > .since-card,
+  .brief-surface > .brief-stamp,
+  .brief-surface > .brief-refresh,
+  .brief-surface > .brief-budget,
+  .brief-surface > .disc { grid-column: 1 / -1; }
+  .brief-surface > .ed-fold { grid-column: 1; }
+}

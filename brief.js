@@ -15,7 +15,7 @@ function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.c
 function listOf(arr) { const u = document.createElement("ul"); arr.forEach((x) => u.appendChild(mk("li", null, x))); return u; }
 function detail(label, node) { const d = document.createElement("details"); d.appendChild(mk("summary", null, label)); d.appendChild(node); return d; }
 function sec(over) { const s = mk("section"); const h = mk("div", "shead"); h.appendChild(mk("span", "over", over)); h.appendChild(mk("span", "line")); s.appendChild(h); return s; }
-function isTime(s) { return /[0-9].*[:–-]/.test(s); }
+function isTime(s) { return /[0-9].*[:\u2013-]/.test(s); }
 
 // minimal block markdown for weekend editions: headings, bullets, paragraphs.
 // Mirrors mdInto() in brief-template.html so both surfaces read the same.
@@ -31,6 +31,39 @@ function mdInto(root, md) {
       list.appendChild(mk("li", null, t.replace(/^[-*]\s+/, ""))); return;
     }
     list = null; root.appendChild(mk("p", "ed-p", t));
+  });
+}
+
+// צופה-הגרפים (01/08): דף-הדשבורד השבועי נמשך חי מ-OneDrive באותו צינור Graph
+// שהבריף עצמו עובר בו, ומוצג ב-iframe מעל האפליקציה - בלי לצאת מה-PWA ובלי
+// חשיפה ציבורית. srcdoc הוא same-origin, כך שה-JS הפנימי של הדשבורד רץ כרגיל.
+function openGraphsOverlay(token, path) {
+  const ov = mk("div", "graphs-overlay");
+  const bar = mk("div", "graphs-bar");
+  const close = mk("button", "btn-ghost", "✕ סגירה");
+  close.type = "button";
+  close.addEventListener("click", () => ov.remove());
+  bar.appendChild(close);
+  bar.appendChild(mk("span", "over", "הסיכום בגרפים"));
+  ov.appendChild(bar);
+  const body = mk("div", "graphs-body");
+  body.appendChild(mk("p", "muted pad", "טוען את הגרפים…"));
+  ov.appendChild(body);
+  ov.tabIndex = -1;
+  ov.addEventListener("keydown", (e) => { if (e.key === "Escape") ov.remove(); });
+  document.body.appendChild(ov);
+  ov.focus();
+  getDrivePathText(token, path).then((html) => {
+    body.innerHTML = "";
+    if (!html) { body.appendChild(mk("p", "err-msg pad", "דף-הגרפים לא נמצא ב-OneDrive")); return; }
+    const fr = document.createElement("iframe");
+    fr.className = "graphs-frame";
+    fr.setAttribute("title", "הסיכום בגרפים");
+    fr.srcdoc = html;
+    body.appendChild(fr);
+  }).catch((e) => {
+    body.innerHTML = "";
+    body.appendChild(mk("p", "err-msg pad", "שגיאה בטעינת הגרפים: " + e.message));
   });
 }
 
@@ -107,9 +140,13 @@ function boxCard(label, n, base, onGo, freeText) {
   return b;
 }
 
-export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null } = {}) {
+export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null, token = null } = {}) {
   container.innerHTML = "";
   const app = container;
+  // 31/07 (מסך רחב, עוגן-מחלקה בלבד): שום כלל CSS לא נוגע ב-.brief-surface מתחת
+  // ל-900px - האפשור הזה אפס-השפעה על מובייל, ומספק ל-app.css נקודת-אחיזה
+  // לפריסת שני-הטורים בדסקטופ (ראה app.css).
+  app.classList.add("brief-surface");
 
   // read-stamp: what did he see last, and is the morning edition already read?
   const builtAt = d.body_built_at || d.generated_at || null;
@@ -295,6 +332,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     const lv = live || {};
     const tN = lv.threads != null ? lv.threads : (d.threads ? d.threads.length : null);
     const s = sec("הקופסאות");
+    s.classList.add("sec-boxes"); // עוגן-מחלקה בלבד - ראה app.css, אפס כלל מתחת ל-900px
     const base = lv.threads != null ? dayBase(lv) : {};
     if (tN != null) s.appendChild(boxCard("חוטים ממתינים למיון", tN, base.threads, onGotoThreads, "הנול נקי · אתה משוחרר"));
     if (lv.questions != null) s.appendChild(boxCard("שאלות פתוחות", lv.questions, base.questions, onGotoThreads, "אין שאלות פתוחות · הכול נסגר"));
@@ -312,8 +350,19 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   if (hasEdition) {
     let s = sec(d.edition.title || "מהדורת סוף-שבוע");
     const c = mk("div", "card");
-    mdInto(c, d.edition.md);
+    // 01/08: קישור-הגרפים שבגוף ה-md הוא נתיב-דיסק יחסי - מת מהטלפון. כשהצינור
+    // מצהיר graphsFile (נתיב OneDrive), הכפתור למטה מחליף אותו והשורה לא מרונדרת.
+    const gfile = d.edition.graphsFile || null;
+    mdInto(c, gfile ? String(d.edition.md).replace(/^▶\s*\*\*\[.*$/m, "") : d.edition.md);
     s.appendChild(c);
+    if (gfile && token) {
+      const gb = mk("button", "card cta-card graphs-cta");
+      gb.type = "button";
+      gb.appendChild(mk("span", "cta-txt", "הסיכום המלא בגרפים · שני הבריפים כתמונה אחת"));
+      gb.appendChild(mk("span", "cta-arrow", "←"));
+      gb.addEventListener("click", () => openGraphsOverlay(token, gfile));
+      s.appendChild(gb);
+    }
     s.appendChild(mk("p", "hint", "מהדורת צופים · " + (d.edition.file || "")));
     edRoot.appendChild(s);
   }

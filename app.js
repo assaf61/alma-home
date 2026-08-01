@@ -275,7 +275,7 @@ async function renderHomeBrief(c) {
       const data = await loadBriefData(token);
       if (data) {
         // 21/07: הקופסאות החיות בתוך הבריף החליפו את פס-הצ'יפים (phoe) - מידע פעם אחת.
-        renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts });
+        renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts, token });
         await prependResume(c, token);                 // "המשך מכאן" sits at the very top
         if (data.date) localStorage.setItem(BRIEF_SEEN_KEY, data.date);   // viewing home clears "new"
         paintCounts(counts);
