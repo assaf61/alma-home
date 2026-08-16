@@ -298,37 +298,47 @@ export async function loadQuestions(token, container) {
   container.appendChild(mk("p", "hint", "מענה = ‘החלטתי, בצע’. השאלה תיווסף ללוג + לארכיון, תנותב לוולט, ותיעלם מהבקלוג. ערוך/מחק/הוסף בכל עת."));
 }
 
+// 16/08 (הדלפק היחיד): הליבה נטולת-DOM. counter.js עונה על שאלת-לוח דרך אותו
+// נתיב מוכח (log, ארכיון, הסרה מהפתוחות) במקום לשכפל אותו. לקח 25/07: לפני
+// שכותבים מימוש חדש, לחפש אם קיים כבר פתרון מוכח במקום אחר במכונה.
+export async function answerQuestionCore(token, q, answer, opts) {
+  const o = opts || {};
+  const id = await qid(q.project, q.text);
+  const date = todayISO();
+  const logLine = JSON.stringify({ id, answer, date, priority: o.priority, timing: o.timing, tag: o.tag, vault: o.vault, project: q.project, text: q.text }) + "\n";
+  const curLog = (await getDrivePathText(token, CONFIG.resolvedLogPath)) || "";
+  await putDrivePathText(token, CONFIG.resolvedLogPath, curLog + logLine);
+
+  const archBlock = `\n## ${q.date || date} | [[${q.project}]] | ${q.platform || ""}\n- ${q.text}  <!-- resolved:${date} -->\n  - **תשובה:** ${answer}\n`;
+  const curArch = (await getDrivePathText(token, CONFIG.openQuestionsArchivePath)) || "";
+  await putDrivePathText(token, CONFIG.openQuestionsArchivePath, curArch.replace(/\s*$/, "\n") + archBlock);
+
+  const curOpen = (await getDrivePathText(token, CONFIG.openQuestionsPath)) || "";
+  await putDrivePathText(token, CONFIG.openQuestionsPath, removeQuestion(curOpen, q.project, q.text));
+
+  let routeError = null;
+  if (o.vault && VAULT_DIR[o.vault]) {
+    try {
+      const meta = ["---", "type: answered-question", `project: ${q.project}`, `answered: ${stamp()}`,
+        o.priority ? `priority: ${o.priority}` : "", o.timing ? `timing: ${o.timing}` : "",
+        o.tag ? `domain_tag: ${o.tag}` : "", "---"].filter(Boolean).join("\n");
+      const body = `\n## שאלה\n${q.text}\n\n## תשובה\n${answer}\n`;
+      const path = `Alma Mind/${VAULT_DIR[o.vault]}/00-raw/threads/q-${id}-${date}.md`;
+      await putDrivePathText(token, path, meta + body);
+    } catch (e) { routeError = e.message; }
+  }
+  return { id, routeError };
+}
+
 async function doAnswer(token, q, opts, row, btn) {
   const answer = (opts.answer || "").trim();
   if (!answer) { toast("צריך תשובה"); return; }
   btn.disabled = true; btn.textContent = "שומר…";
   try {
-    const id = await qid(q.project, q.text);
-    const date = todayISO();
-    const logLine = JSON.stringify({ id, answer, date, priority: opts.priority, timing: opts.timing, tag: opts.tag, vault: opts.vault, project: q.project, text: q.text }) + "\n";
-    const curLog = (await getDrivePathText(token, CONFIG.resolvedLogPath)) || "";
-    await putDrivePathText(token, CONFIG.resolvedLogPath, curLog + logLine);
-
-    const archBlock = `\n## ${q.date || date} | [[${q.project}]] | ${q.platform || ""}\n- ${q.text}  <!-- resolved:${date} -->\n  - **תשובה:** ${answer}\n`;
-    const curArch = (await getDrivePathText(token, CONFIG.openQuestionsArchivePath)) || "";
-    await putDrivePathText(token, CONFIG.openQuestionsArchivePath, curArch.replace(/\s*$/, "\n") + archBlock);
-
-    const curOpen = (await getDrivePathText(token, CONFIG.openQuestionsPath)) || "";
-    await putDrivePathText(token, CONFIG.openQuestionsPath, removeQuestion(curOpen, q.project, q.text));
-
-    if (opts.vault && VAULT_DIR[opts.vault]) {
-      try {
-        const meta = ["---", "type: answered-question", `project: ${q.project}`, `answered: ${stamp()}`,
-          opts.priority ? `priority: ${opts.priority}` : "", opts.timing ? `timing: ${opts.timing}` : "",
-          opts.tag ? `domain_tag: ${opts.tag}` : "", "---"].filter(Boolean).join("\n");
-        const body = `\n## שאלה\n${q.text}\n\n## תשובה\n${answer}\n`;
-        const path = `Alma Mind/${VAULT_DIR[opts.vault]}/00-raw/threads/q-${id}-${date}.md`;
-        await putDrivePathText(token, path, meta + body);
-      } catch (e) { toast("נשמר, אך הניתוב לוולט נכשל: " + e.message); }
-    }
-
+    const { routeError } = await answerQuestionCore(token, q, answer, opts);
+    if (routeError) toast("נשמר, אך הניתוב לוולט נכשל: " + routeError);
     markCleared(row, opts.vault);
-    toast(opts.vault ? "נענה · נותב → " + (VAULT_DIR[opts.vault] || opts.vault) : "נענה · נוקה מהבקלוג");
+    toast(opts.vault ? "נענה · נותב אל " + (VAULT_DIR[opts.vault] || opts.vault) : "נענה · נוקה מהבקלוג");
   } catch (e) {
     btn.disabled = false; btn.textContent = "✓ ענה והפץ";
     toast("שמירה נכשלה: " + e.message);

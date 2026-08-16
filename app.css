@@ -451,6 +451,38 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .eng-yn .no { background: var(--bg); color: var(--err-d); border: 1px solid var(--err); }
 .eng-yn button:disabled { opacity: .6; cursor: default; }
 
+/* הדלפק היחיד (16/08): שורת-אותיות, תג-מקור ודחייה.
+   האותיות מעל כן/לא ובמלוא הרוחב - טקסט עברי ארוך לא נכנס לכפתור צר, ויעד-נגיעה
+   של 44px הוא הרצפה בטלפון. */
+.eng-opts { margin-top: 10px; }
+.eng-opts-lbl { font-size: .78rem; color: var(--txt-s); margin-bottom: 6px; }
+.eng-opts .opt {
+  display: block; width: 100%; text-align: start; font: inherit; font-size: .92rem;
+  color: var(--txt); background: var(--bg); border: 1px solid var(--border-s);
+  border-radius: var(--r-s); padding: 11px 12px; min-height: 44px; margin-bottom: 6px;
+  cursor: pointer; transition: background var(--t-base), border-color var(--t-base);
+}
+.eng-opts .opt:hover { background: var(--acc-l); border-color: var(--acc); }
+.eng-opts .opt:disabled { opacity: .6; cursor: default; }
+
+.eng-origin {
+  font-size: .72rem; color: var(--txt-m); background: var(--surface-2);
+  border-radius: var(--r-f); padding: 2px 8px; margin-inline-start: 6px; white-space: nowrap;
+}
+
+.eng-defer { display: flex; gap: 8px; margin-top: 8px; }
+.eng-defer .iconbtn { flex: 1; justify-content: center; }
+
+/* יציאה רכה בדחייה - שהפריט לא ייעלם בקפיצה */
+.thr.snoozed-out { opacity: 0; transform: translateY(-6px); transition: opacity .18s, transform .18s; }
+
+/* שורת-המקורות בראש הדלפק */
+.src-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 10px; }
+.src-pill {
+  font-size: .76rem; color: var(--txt-m); background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-f); padding: 3px 10px;
+}
+
 /* ta-grow: שדה הערה שגדל עם התוכן, בלי גלילה פנימית (19/07) - חייב לבוא אחרי
    .ta-remark למעלה כדי לדרוס resize/overflow-y (אותה ספציפיות, סדר-מקור מכריע). */
 .ta-grow { overflow-y: hidden; resize: none; }

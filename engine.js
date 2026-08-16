@@ -6,6 +6,9 @@
 import { getDrivePathText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast, micButton } from "./ui.js";
+// 16/08 (הדלפק היחיד): הכתיבה עברה ל-counter.js, שמנתב לפי מקור הפריט. הרינדור
+// נשאר כאן. counter.js לא מייבא את engine.js, ולכן אין מעגל.
+import { submitAnswer, canShowOptions, snoozeItem, filterSnoozed } from "./counter.js";
 
 function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 
@@ -108,6 +111,7 @@ export function localDecided() { return readJSON(DECIDED_KEY, {}); }
 
 // סולם-העדיפויות (הכרעת 22/07): תג-מדרגה על כרטיס ממתין. שירות מעל מכונה, תמיד.
 const TIER_HE = { 1: "אדם מחכה", 2: "ריצה חונה", 3: "שירות", 4: "מכונה" };
+const ORIGIN_HE = { actions: "פעולות", qboard: "לוח", engine: "מנוע" };
 
 function renderGuardLine(guard) {
   const wrap = mk("div", "eng-guard");
@@ -121,43 +125,50 @@ function renderGuardLine(guard) {
   return wrap;
 }
 
-function markDecidedUI(row, verdict, note, demo) {
+// answer = { kind: "yes"|"no"|"option"|"text", option?, optionLabel?, note? }
+function verdictLabel(answer) {
+  if (answer.kind === "option") return [answer.option, answer.optionLabel].filter(Boolean).join(" · ");
+  if (answer.kind === "yes") return "כן";
+  if (answer.kind === "no") return "לא";
+  return "נענה";
+}
+
+function markDecidedUI(row, answer, note, demo) {
   const ta = row.querySelector("textarea"); if (ta) ta.remove();
   const recRow = row.querySelector(".rec-row"); if (recRow) recRow.remove();
   const yn = row.querySelector(".eng-yn"); if (yn) yn.remove();
-  const label = (demo ? "מצב הדגמה · " : "") + "נרשם: " + (verdict === "yes" ? "כן" : "לא") + (note ? " · ההערה שלך: " + note : "") + (demo ? "" : " · ממתין לעדכון בלוח");
+  const opts = row.querySelector(".eng-opts"); if (opts) opts.remove();
+  const defer = row.querySelector(".eng-defer"); if (defer) defer.remove();
+  const label = (demo ? "מצב הדגמה · " : "") + "נרשם: " + verdictLabel(answer) + (note ? " · ההערה שלך: " + note : "") + (demo ? "" : " · ממתין לעדכון בלוח");
   row.appendChild(mk("span", "locked-tag", label));
 }
 
-async function submitDecision(it, verdict, note, ctx, row, buttons) {
+async function submitDecision(it, answer, ctx, row, buttons) {
   buttons.forEach((b) => { b.disabled = true; });
-  const cleanNote = (note || "").trim();
+  const cleanNote = (answer.note || "").trim();
+  const payload = { ...answer, note: cleanNote };
 
   if (ctx.demo) {
     clearDraft(it.id);
-    markDecidedUI(row, verdict, cleanNote, true);
-    toast("מצב הדגמה · נרשם: " + (verdict === "yes" ? "כן" : "לא") + (cleanNote ? " · ההערה שלך: " + cleanNote : ""));
+    markDecidedUI(row, answer, cleanNote, true);
+    toast("מצב הדגמה · נרשם: " + verdictLabel(answer) + (cleanNote ? " · ההערה שלך: " + cleanNote : ""));
     return;
   }
 
-  const at = new Date().toISOString();
-  const payload = { id: it.id, verdict, note: cleanNote, at, src: "phone" };
-  const fname = `decide-${Date.now()}-${it.id}.json`;
-  try {
-    await putDrivePathText(ctx.token, `${CONFIG.engineInboxPath}/${fname}`, JSON.stringify(payload, null, 2));
-  } catch (e) {
+  const res = await submitAnswer(it, payload, ctx);
+  if (!res.ok) {
     buttons.forEach((b) => { b.disabled = false; });
-    toast("שליחת ההכרעה נכשלה · " + friendlyErr(e));
+    toast(res.stale ? res.error : "שליחת ההכרעה נכשלה · " + friendlyErr({ message: res.error }));
     return;
   }
 
   const decided = readJSON(DECIDED_KEY, {});
-  decided[it.id] = { verdict, note: cleanNote, at };
+  decided[it.id] = { verdict: answer.kind, option: answer.option || "", note: cleanNote, at: new Date().toISOString() };
   writeJSON(DECIDED_KEY, decided);
   clearDraft(it.id);
 
-  markDecidedUI(row, verdict, cleanNote, false);
-  toast("נרשם: " + (verdict === "yes" ? "כן" : "לא") + (cleanNote ? " · ההערה שלך: " + cleanNote : ""));
+  markDecidedUI(row, answer, cleanNote, false);
+  toast("נרשם: " + verdictLabel(answer) + (cleanNote ? " · ההערה שלך: " + cleanNote : ""));
 }
 
 function renderAwaitingItem(it, ctx) {
@@ -167,13 +178,16 @@ function renderAwaitingItem(it, ctx) {
   const head = mk("div", "thr-head-row"); head.style.cursor = "default";
   head.appendChild(mk("span", "sum", it.title || "(ללא כותרת)"));
   if (it.tier) head.appendChild(mk("span", "eng-tier t" + it.tier, TIER_HE[it.tier] || ""));
+  // תג-מקור (16/08): הדלפק מציג שלושה מקורות, ואסף צריך לדעת על מה הוא עונה.
+  if (ORIGIN_HE[it.origin]) head.appendChild(mk("span", "eng-origin", ORIGIN_HE[it.origin]));
   row.appendChild(head);
 
   if (it.detail) row.appendChild(mk("div", "thr-body", it.detail));
   if (it.recommendation) row.appendChild(mk("div", "thr-body eng-rec", "מומלץ: " + it.recommendation));
 
   if (already) {
-    row.appendChild(mk("span", "locked-tag", "נרשם מקומית: " + (already.verdict === "yes" ? "כן" : "לא")
+    const what = already.option || (already.verdict === "yes" ? "כן" : already.verdict === "no" ? "לא" : "נענה");
+    row.appendChild(mk("span", "locked-tag", "נרשם מקומית: " + what
       + (already.note ? " · " + already.note : "") + " · ממתין לעדכון בלוח"));
     return row;
   }
@@ -196,34 +210,86 @@ function renderAwaitingItem(it, ctx) {
   const btnRow = mk("div", "eng-yn");
   const yes = mk("button", "yes", "כן ✓"); yes.type = "button";
   const no = mk("button", "no", "לא ✗"); no.type = "button";
-  yes.addEventListener("click", () => submitDecision(it, "yes", ta.value, ctx, row, [yes, no]));
-  no.addEventListener("click", () => submitDecision(it, "no", ta.value, ctx, row, [yes, no]));
   btnRow.appendChild(yes); btnRow.appendChild(no);
+
+  // שורת האותיות (16/08): מעל כן/לא, ורק כשיש אופציות וגם הצד השני יודע לקרוא
+  // אותן. canShowOptions מסתיר אותה על פריטי engine עד שצרכן ה-inbox יכיר
+  // verdict:"option" - עדיף כפתור שלא קיים מכפתור שנבלע בשקט.
+  let optBtns = [];
+  if (canShowOptions(it)) {
+    const opts = mk("div", "eng-opts");
+    opts.appendChild(mk("div", "eng-opts-lbl", "בחר אפשרות"));
+    it.options.forEach((o) => {
+      const key = o.key || "";
+      const label = o.label || "";
+      const b = mk("button", "opt", [key, label].filter(Boolean).join(" · ")); b.type = "button";
+      b.addEventListener("click", () => submitDecision(it, { kind: "option", option: key, optionLabel: label, note: ta.value }, ctx, row, [...optBtns, yes, no]));
+      optBtns.push(b); opts.appendChild(b);
+    });
+    // מעל שדה ההערה: הבחירה היא המסלול המהיר, וההערה היא התוספת האופציונלית.
+    row.insertBefore(opts, ta);
+  }
+
+  yes.addEventListener("click", () => submitDecision(it, { kind: "yes", note: ta.value }, ctx, row, [...optBtns, yes, no]));
+  no.addEventListener("click", () => submitDecision(it, { kind: "no", note: ta.value }, ctx, row, [...optBtns, yes, no]));
   row.appendChild(btnRow);
+
+  // "לא עכשיו" (16/08): דחייה מקומית למכשיר בלבד. היא לא נכתבת לשום מקור ולא
+  // מופיעה כקבלה - דחייה היא "לא עכשיו, לא כאן", לא הכרעה.
+  const deferRow = mk("div", "eng-defer");
+  const defer = mk("button", "iconbtn", "לא עכשיו"); defer.type = "button";
+  defer.title = "יחזור מחר ב-07:00";
+  defer.addEventListener("click", () => {
+    snoozeItem(it.id);
+    row.classList.add("snoozed-out");
+    setTimeout(() => { row.remove(); if (ctx.onSnooze) ctx.onSnooze(); }, 180);
+  });
+  deferRow.appendChild(defer);
+  const tts = mk("button", "iconbtn", "הקרא לי"); tts.type = "button";
+  tts.addEventListener("click", () => speakItem(it));
+  deferRow.appendChild(tts);
+  row.appendChild(deferRow);
 
   return row;
 }
 
+let speaking = false;
+function speakItem(it) {
+  if (!("speechSynthesis" in window)) { toast("הדפדפן לא תומך בהקראה"); return; }
+  if (speaking) { speechSynthesis.cancel(); speaking = false; return; }
+  const txt = [it.title, it.detail, it.recommendation ? "מומלץ: " + it.recommendation : ""].filter(Boolean).join(". ");
+  const u = new SpeechSynthesisUtterance(txt); u.lang = "he-IL";
+  const v = speechSynthesis.getVoices().find((x) => x.lang && x.lang.startsWith("he")); if (v) u.voice = v;
+  u.onend = () => { speaking = false; }; speaking = true; speechSynthesis.speak(u);
+}
+
 export function renderAwaitingSection(items, ctx) {
   const sec = mk("section");
+  // דחייה מסננת כאן, ולא במקור: היא מקומית למכשיר לפי הכרעת 16/08.
+  const { visible, snoozed } = filterSnoozed(items || []);
+
   const sh = mk("div", "shead");
   sh.appendChild(mk("span", "over", "ממתין לך"));
   sh.appendChild(mk("span", "line"));
-  sh.appendChild(mk("span", "thr-count", items.length ? String(items.length) : "✓"));
+  sh.appendChild(mk("span", "thr-count", visible.length ? String(visible.length) : "✓"));
   sec.appendChild(sh);
 
-  if (!items.length) {
-    sec.appendChild(mk("div", "card empty", "אין החלטות שממתינות לך כרגע. ✓"));
+  if (!visible.length) {
+    sec.appendChild(mk("div", "card empty", snoozed
+      ? `אין מה לענות כרגע. ${snoozed} נדחו להיום ויחזרו מחר בבוקר.`
+      : "אין החלטות שממתינות לך כרגע. ✓"));
     return sec;
   }
 
   const list = mk("div", "thr-list");
-  items.forEach((it) => {
+  visible.forEach((it) => {
     try { list.appendChild(renderAwaitingItem(it, ctx)); }
     catch (e) { list.appendChild(mk("div", "thr err-msg", "פריט לא תקין בלוח: " + (e.message || ""))); }
   });
   sec.appendChild(list);
-  sec.appendChild(mk("p", "hint", "כן/לא נשלח מיד עם ההערה שלך (אם כתבת). ההכרעה מסומנת גם במכשיר הזה עד שהלוח יתעדכן."));
+  // מונה-דחיות גלוי: דחייה לא הופכת להיעלמות שקטה.
+  if (snoozed) sec.appendChild(mk("p", "hint", `${snoozed} נדחו להיום · יחזרו מחר ב-07:00`));
+  sec.appendChild(mk("p", "hint", "כן/לא/אות נשלחים מיד עם ההערה שלך (אם כתבת). ההכרעה מסומנת גם במכשיר הזה עד שהלוח יתעדכן."));
   return sec;
 }
 

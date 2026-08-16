@@ -21,12 +21,12 @@ function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.c
 function todayISO() { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
 
 // ---- parse actions.md (below the marker) into a flat model ----
-function splitHead(text) {
+export function splitHead(text) {
   const i = (text || "").indexOf(MARKER);
   if (i < 0) return { head: (text || "").replace(/\s*$/, "") + "\n\n" + MARKER, body: "" };
   return { head: text.slice(0, i + MARKER.length), body: text.slice(i + MARKER.length) };
 }
-function parseBody(body) {
+export function parseBody(body) {
   const lines = (body || "").split("\n");
   const items = []; let cur = { date: todayISO(), source: "" }; let last = null;
   for (const line of lines) {
@@ -53,7 +53,7 @@ function parseBody(body) {
   }
   return items;
 }
-function serialize(head, items) {
+export function serialize(head, items) {
   // group by date|source, preserve order of first appearance
   const groups = []; const byKey = {};
   items.forEach((it) => {
@@ -72,7 +72,7 @@ function serialize(head, items) {
   return out;
 }
 
-function laneOf(it) { return it.status === "done" ? "done" : (it.owner === "assaf" ? "you" : "machine"); }
+export function laneOf(it) { return it.status === "done" ? "done" : (it.owner === "assaf" ? "you" : "machine"); }
 
 let speaking = false;
 function speak(txt) {
@@ -110,12 +110,39 @@ function render(container, head, items, save, rerender) {
     const sec = mk("section");
     const sh = mk("div", "shead"); sh.appendChild(mk("span", "over", label)); sh.appendChild(mk("span", "line")); sec.appendChild(sh);
     const list = mk("div", "thr-list");
+    // 16/08 (דוקטרינת הדלפק-היחיד, הכרעת 23/07 שנשחקה): מסלול "ממתין לך" מאבד את
+    // כפתורי-הניהול והופך לתצוגה שמנווטת לדלפק. שני המסלולים האחרים לא נגעו -
+    // ערוך/תוצאה/יומן/ארכב הם פעלים נכונים על עבודת-מכונה ועל מה שנעשה.
+    if (key === "you") {
+      inLane.forEach((it) => list.appendChild(waitingRow(it)));
+      sec.appendChild(list);
+      const go = mk("button", "commit", `ענה על ${inLane.length} בדלפק ←`); go.type = "button";
+      go.style.width = "100%"; go.style.marginTop = "8px";
+      go.addEventListener("click", () => { location.hash = "#answer"; });
+      sec.appendChild(go);
+      container.appendChild(sec);
+      return;
+    }
     inLane.forEach((it) => list.appendChild(card(it, items, save, rerender)));
     sec.appendChild(list); container.appendChild(sec);
   });
 
   if (!items.length) container.appendChild(mk("div", "card empty", "אין פעולות פתוחות. ✓"));
-  container.appendChild(mk("p", "hint", "המכונה מבצעת לבד את הבטוחות (מחקר/web/פנימי) וכותבת תוצאה כאן. owner:אתה = ממתין להחלטה/פעולה שלך. הכל ניתן לעריכה."));
+  container.appendChild(mk("p", "hint", "המכונה מבצעת לבד את הבטוחות (מחקר/web/פנימי) וכותבת תוצאה כאן. מה שממתין לך נענה בדלפק (\"מה השאלה?\"); עבודת-המכונה ומה שנעשה ניתנים לעריכה כאן."));
+}
+
+// שורת "ממתין לך": תצוגה בלבד. המענה קורה בדלפק, ולא בשני מקומות שמתחרים.
+function waitingRow(it) {
+  const row = mk("div", "thr");
+  const top = mk("div", "thr-head-row"); top.style.cursor = "default";
+  if (it.source) top.appendChild(mk("span", "time ltr", it.source));
+  top.appendChild(mk("span", "sum", it.text));
+  row.appendChild(top);
+  if (it.result && it.result.trim()) {
+    const r = mk("div", "thr-text"); r.appendChild(mk("div", "thr-body", "תוצאה: " + it.result));
+    row.appendChild(r);
+  }
+  return row;
 }
 
 function card(it, items, save, rerender) {

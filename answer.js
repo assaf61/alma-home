@@ -4,10 +4,12 @@
 // → שירות → מכונה; ותק שובר-שוויון בלבד, הכרעת 22/07). אותו לוח-ענן
 // (engine-board.json) ואותו inbox של חדר-המכונות - אפס צינור חדש, פנים ממוקדות.
 // חדר-המכונות המלא נשאר נגיש בקישור מלמטה.
-import { getDrivePathText } from "./graph.js";
-import { CONFIG } from "./config.js";
 import { renderAwaitingSection, localDecided } from "./engine.js";
 import { APP_VERSION } from "./ui.js";
+// 16/08 (הכרעת אסף): הדלפק בולע את שלושת המקורות. הספירה של אותו בוקר הראתה
+// למה - לוח-המנוע ולוח-השאלות היו ריקים, וכל 16 הממתינים ישבו ב-actions.md,
+// המשטח היחיד שאין בו פעלי-מענה. הדלפק אמר "הכל נסגר" ודיווח אמת.
+import { loadAllSources } from "./counter.js";
 
 function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 
@@ -19,8 +21,8 @@ function fmtStamp(iso, verb = "עודכן") {
   return `${verb} ${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function titleOf(board, id) {
-  const a = (board.awaiting || []).find((x) => x.id === id);
+function titleOf(items, id) {
+  const a = (items || []).find((x) => x.id === id);
   return (a && a.title) || null;
 }
 
@@ -50,26 +52,46 @@ function renderReceipts(receipts, inFlight) {
   return sec;
 }
 
-function renderPage(container, board, token, opts) {
+const SOURCE_HE = { qboard: "לוח", actions: "פעולות", engine: "מנוע" };
+
+// שורת-המקורות: הדלפק אחד, אבל אסף רואה מאיפה העבודה מגיעה. נגזרת מספירה חיה.
+function sourceRow(counts) {
+  const row = mk("div", "src-row");
+  ["qboard", "actions", "engine"].forEach((k) => {
+    row.appendChild(mk("span", "src-pill", `${SOURCE_HE[k]} ${counts[k] || 0}`));
+  });
+  return row;
+}
+
+function renderPage(container, data, token, opts) {
   const demo = !!(opts && opts.demo);
   container.innerHTML = "";
+  const board = data.board || {};
 
   const head = mk("div", "thr-head");
   head.appendChild(mk("span", "over", "מה השאלה?"));
   head.appendChild(mk("span", "thr-count", fmtStamp(board.updatedAt) || " "));
   container.appendChild(head);
 
+  if (data.counts) container.appendChild(sourceRow(data.counts));
+  // מקור שנפל לא מפיל את הדלפק: מה שנטען מוצג, ומה שלא נאמר במפורש.
+  if (data.failed && data.failed.length) {
+    container.appendChild(mk("p", "err-msg pad", "לא נטענו: " + data.failed.join(" · ") + " · השאר מוצג למטה"));
+  }
+
   // הכרעות שנשלחו מהמכשיר הזה וטרם חזרו בלוח-הענן - קבלות-בדרך, לא כרטיס פתוח
   const decided = demo ? {} : localDecided();
   const cloudReceiptIds = new Set((board.receipts || []).map((r) => r.id));
   const inFlight = Object.entries(decided)
     .filter(([id]) => !cloudReceiptIds.has(id))
-    .map(([id, d]) => ({ id, title: titleOf(board, id) || id, verdict: d.verdict, note: d.note, at: d.at, status: "נשלח מהמכשיר, ממתין ללוח" }));
+    .map(([id, d]) => ({ id, title: titleOf(data.items, id) || id, verdict: d.verdict, note: d.note, at: d.at, status: "נשלח מהמכשיר, ממתין ללוח" }));
 
   container.appendChild(renderReceipts(board.receipts || [], inFlight));
 
-  const awaiting = (board.awaiting || []).filter((i) => !decided[i.id]);
-  container.appendChild(renderAwaitingSection(awaiting, { token, demo, decided: {} }));
+  // הרשימה המאוחדת מ-counter.js, כבר ממוינת לפי סולם-העדיפויות.
+  const awaiting = (data.items || []).filter((i) => !decided[i.id]);
+  const rerender = () => renderPage(container, data, token, opts);
+  container.appendChild(renderAwaitingSection(awaiting, { token, demo, decided: {}, onSnooze: rerender }));
 
   const foot = mk("p", "hint");
   const a = mk("a", null, "חדר המכונות המלא ←"); a.href = "#engine";
@@ -84,40 +106,42 @@ function renderPage(container, board, token, opts) {
 export async function loadAnswer(token, container) {
   container.innerHTML = "";
   container.appendChild(mk("p", "muted pad", "טוען את הדלפק…"));
-  let raw;
-  try { raw = await getDrivePathText(token, CONFIG.engineBoardPath); }
+  let data;
+  try { data = await loadAllSources(token); }
   catch (e) {
     container.innerHTML = "";
     container.appendChild(mk("p", "err-msg pad", "שגיאת טעינת הדלפק: " + ((e && e.message) || "שגיאה לא ידועה")));
     return;
   }
-  if (raw == null) {
-    container.innerHTML = "";
-    container.appendChild(mk("div", "card empty", "המכונה עוד לא פרסמה לוח לענן - יופיע כאן אוטומטית."));
-    return;
-  }
-  let board;
-  try { board = JSON.parse(raw); }
-  catch (e) {
-    container.innerHTML = "";
-    container.appendChild(mk("p", "err-msg pad", "הלוח מהענן אינו תקין (JSON שבור): " + (e.message || "")));
-    return;
-  }
-  renderPage(container, board, token, { demo: false });
+  // שלושה מקורות ריקים זה מצב לגיטימי, לא שגיאה - וזה בדיוק מה שקרה ב-16/08.
+  renderPage(container, data, token, { demo: false });
 }
 
 // ---------- demo (no auth) ----------
-const DEMO_ANSWER = {
-  updatedAt: new Date().toISOString(),
-  awaiting: [
-    { id: "demo-a1", title: "כרטיס לדוגמה: שאלה אחת, כן/לא, הערה במיקרופון.",
-      detail: "ככה נראה כרטיס שממתין להכרעה. אחרי התחברות תראה את הכרטיסים האמיתיים.",
-      recommendation: "כן", tier: 3 },
+const DEMO_DATA = {
+  board: {
+    updatedAt: new Date().toISOString(),
+    receipts: [
+      { id: "demo-r1", title: "כרטיס שהוכרע אתמול", verdict: "yes",
+        note: "ההערה שהכתבת מוצגת כאן, כדי שתראה שהכיוון לא הלך לאיבוד.",
+        at: new Date(Date.now() - 86400000).toISOString(), status: "בוצע" },
+    ],
+  },
+  items: [
+    { id: "demo-a1", origin: "actions", tier: 3, options: [],
+      title: "כרטיס לדוגמה: כן/לא, הערה, מיקרופון, ודחייה למחר.",
+      detail: "ככה נראה כרטיס שממתין להכרעה. אחרי התחברות תראה את האמיתיים.",
+      recommendation: "כן" },
+    { id: "demo-a2", origin: "actions", tier: 3,
+      title: "כרטיס לדוגמה עם אופציות: נוגעים באות, וזה נשלח מיד.",
+      detail: "שורת האותיות מופיעה רק כשהשאלה נושאת אותן.", recommendation: "",
+      options: [
+        { key: "א", label: "האפשרות הראשונה" },
+        { key: "ב", label: "האפשרות השנייה" },
+        { key: "ג", label: "אחר, אנסח בעצמי" },
+      ] },
   ],
-  receipts: [
-    { id: "demo-r1", title: "כרטיס שהוכרע אתמול", verdict: "yes",
-      note: "ההערה שהכתבת מוצגת כאן, כדי שתראה שהכיוון לא הלך לאיבוד.",
-      at: new Date(Date.now() - 86400000).toISOString(), status: "בוצע" },
-  ],
+  counts: { qboard: 0, actions: 2, engine: 0 },
+  failed: [],
 };
-export function loadAnswerDemo(container) { renderPage(container, DEMO_ANSWER, null, { demo: true }); }
+export function loadAnswerDemo(container) { renderPage(container, DEMO_DATA, null, { demo: true }); }
