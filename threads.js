@@ -250,7 +250,7 @@ function refreshCount(row) {
 
 function header(container, total, pending) {
   const h = mk("div", "thr-head");
-  h.appendChild(mk("span", "over", "מפיץ החוטים"));
+  h.appendChild(mk("span", "over", "חוטי הנול")); // 12/08 (הכרעת 20/07 שלא הושלמה): מפיץ -> נול, לשם אחיד עם engine.js
   h.appendChild(mk("span", "thr-count", `${pending} ממתינים · ${total} סה"כ`));
   container.appendChild(h);
 }

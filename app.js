@@ -79,7 +79,7 @@ function refreshNarrative(statusCb) {
     statusCb("מרענן נרטיב… (עד ~2-3 דק')", false);
     const start = Date.now();
     const timer = setInterval(async () => {
-      if (Date.now() - start > 5 * 60 * 1000) { clearInterval(timer); statusCb("לקח יותר מהצפוי — בדוק שוב בעוד רגע", true); return; }
+      if (Date.now() - start > 5 * 60 * 1000) { clearInterval(timer); statusCb("⚠ לא הגיע גוף חדש אחרי 5 דקות - הרענון כנראה נתקע. אמור לפייבל: 'הרענון תקוע'", true); return; }
       let d = null;
       try { d = await loadBriefData(token); } catch { /* keep polling */ }
       if (d && d.body_built_at && d.body_built_at !== before) {
