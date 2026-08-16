@@ -303,10 +303,10 @@ export async function loadActions(token, container) {
 // ---------- demo (no auth) ----------
 const DEMO_HEAD = "# Actions (demo)\n\n" + MARKER;
 const DEMO_ITEMS = [
-  { date: "2026-06-18", source: "s3zs-lotus", text: "לחקור מועדי פסטיבל הלוטוס ולהציע חלון לנכדים", owner: "machine", status: "done", result: "3 סופי שבוע: 25-27/6, 3-4/7, 9-11/7. המלצה: שבת 27/6 או חמישי (רכבת הגן). ילד ירושלמי+מנויים חינם." },
-  { date: "2026-06-18", source: "s3zs-lotus", text: "לבחור מועד ולקבוע את הביקור עם הנכדים", owner: "assaf", status: "waiting", result: "" },
-  { date: "2026-06-18", source: "wdlk-actuary", text: "להזכיר לאורי דוח אקטוארי (פנייה לאדם — דורש אותך)", owner: "assaf", status: "waiting", result: "" },
-  { date: "2026-06-18", source: "dnde-finance", text: "לרשום ב-alma-finance מתנה 3,500₪ לטליה", owner: "machine", status: "todo", result: "פנימי ובטוח; ממתין לאימות נתיב הקובץ." },
+  { date: "2026-06-18", source: "aaaa-demo", text: "(דוגמה) לבדוק מועדים אפשריים ולהציע חלון ביומן", owner: "machine", status: "done", result: "(דוגמה) שלוש אפשרויות נמצאו. ההמלצה מסומנת בראש הרשימה." },
+  { date: "2026-06-18", source: "aaaa-demo", text: "(דוגמה) לבחור מועד ולסגור אותו", owner: "assaf", status: "waiting", result: "" },
+  { date: "2026-06-18", source: "bbbb-demo", text: "(דוגמה) פנייה לאדם - דורש אותך", owner: "assaf", status: "waiting", result: "" },
+  { date: "2026-06-18", source: "cccc-demo", text: "(דוגמה) לרשום פריט במעקב", owner: "machine", status: "todo", result: "(דוגמה) ממתין לאימות נתיב הקובץ." },
 ];
 export function loadActionsDemo(container) {
   container.innerHTML = "";
