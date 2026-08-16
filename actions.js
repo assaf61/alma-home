@@ -15,7 +15,12 @@ let calendarAdd = async () => { toast("התחבר כדי להוסיף ליומן
 const MARKER = "<!-- פעולות חדשות - הוסף מתחת לשורה הזו -->";
 const OWNER_HE = { machine: "מכונה", assaf: "אתה" };
 const STATUS_HE = { todo: "לעשות", doing: "בתנועה", done: "נעשה", waiting: "ממתין לך" };
-const MARK_RE = /<!--\s*owner:(\w+)\s+status:(\w+)\s*-->/;
+// 16/08/2026 - זנב-המרקר. 39 מתוך 75 הפריטים בקובץ נושאים מזהה אחרי הסטטוס
+// (`<!-- owner:machine status:todo qboard-swallowed-lines -->`), והביטוי הקודם דרש
+// `-->` מיד אחרי הסטטוס ולכן לא תפס אותם כלל. התוצאה הייתה כפולה: הבעלים והסטטוס
+// האמיתיים נזרקו וכל פריט כזה נקרא machine/todo, והמרקר המקורי נשאר בתוך הטקסט
+// כך שכל שמירה הדביקה לו מרקר שני. הזנב נתפס עכשיו בקבוצה שלישית ונכתב בחזרה.
+const MARK_RE = /<!--\s*owner:(\w+)\s+status:(\w+)([^>]*?)\s*-->/;
 
 function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 function todayISO() { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
@@ -26,50 +31,69 @@ export function splitHead(text) {
   if (i < 0) return { head: (text || "").replace(/\s*$/, "") + "\n\n" + MARKER, body: "" };
   return { head: text.slice(0, i + MARKER.length), body: text.slice(i + MARKER.length) };
 }
+// 16/08/2026 - שימור-שורות. הגרסה הקודמת של serialize בנתה את הקובץ מחדש רק
+// מהפריטים שהפרסר ידע למדל, ולכן כל שורה אחרת מתחת למרקר נמחקה בשמירה: פרוזה,
+// כותרות-משנה, שורות-קבלה, שורות ריקות. במבחן-הסתירה של 16/08 תשובה אחת בדלפק
+// מחקה שש שורות ממצאים שנכתבו ב-15/08. בצירוף עיוורון-ה-CRLF זה היה גרוע יותר:
+// פרסר שרואה אפס פריטים היה גורם לשמירה למחוק את כל גוף הקובץ ולהשאיר רק את הראש.
+// לכן כל שורה שאיננה פריט נשמרת עכשיו כפי-שהיא וממוקמת יחסית לפריט שאליו הצמדה:
+// _before = מה שקדם לפריט (כולל שורת ה-## שלו), _after = מה שבא אחריו.
+// serialize משחזר את הסדר המקורי במקום לקבץ מחדש, ומייצר כותרת חדשה רק לפריט
+// שנוסף ואין לו כותרת משלו.
 export function parseBody(body) {
   const lines = (body || "").split("\n");
   const items = []; let cur = { date: todayISO(), source: "" }; let last = null;
+  let pending = [];   // שורות שטרם הוצמדו לפריט
+  // כותרת `###` פותחת בלוק-נרטיב (ממצא, סיכום, שורת-קבלה), והבלוק נסגר בכותרת
+  // `##` הבאה שהיא היחידה שפותחת קבוצת-פעולות. תבליט בתוך בלוק כזה הוא פרוזה
+  // ולא פעולה - אלא אם הוא נושא מרקר. המרקר הוא ההצהרה המפורשת של הכותב שזו
+  // פעולה, והוא גובר: מתוך 11 התבליטים שבבלוקי-הנרטיב ב-16/08, שמונה נושאים
+  // מרקר ושלושה מהם ממתינים לאסף. פסילה לפי מיקום בלבד הייתה מסתירה אותם.
+  let narrative = false;
   for (const line of lines) {
+    if (/^#{3,}\s/.test(line)) { narrative = true; if (last) last._after.push(line); else pending.push(line); continue; }
     const hm = line.match(/^##\s+(.*)$/);
     if (hm) {
+      narrative = false;
       const parts = hm[1].split("|").map((p) => p.trim());
       const dm = hm[1].match(/(\d{4}-\d{2}-\d{2})/);
       const sm = hm[1].match(/\[\[([^\]]+)\]\]/);
       cur = { date: dm ? dm[1] : todayISO(), source: sm ? sm[1] : (parts[parts.length - 1] || "") };
-      last = null; continue;
+      pending.push(line); last = null; continue;
     }
     const rm = line.match(/^\s+- \*\*תוצאה:\*\*\s*(.*)$/);
     if (rm && last) { last.result = rm[1].trim(); continue; }
-    const qm = line.match(/^- (.*)$/);
+    const qm = (narrative && !MARK_RE.test(line)) ? null : line.match(/^- (.*)$/);
     if (qm) {
       const full = qm[1];
       const mk2 = full.match(MARK_RE);
       const owner = mk2 ? mk2[1] : "machine";
       const status = mk2 ? mk2[2] : "todo";
+      const tag = mk2 ? (mk2[3] || "").trim() : "";
       const text = full.replace(MARK_RE, "").trim();
-      last = { date: cur.date, source: cur.source, text, owner, status, result: "" };
+      last = { date: cur.date, source: cur.source, text, owner, status, tag, result: "", _before: pending, _after: [] };
+      pending = [];
       items.push(last); continue;
     }
+    if (last) last._after.push(line); else pending.push(line);
   }
+  // פרוזה בזנב הקובץ שאין אחריה פריט. נשמרת על המערך עצמו כדי לא לשנות חתימה.
+  items._tail = pending;
   return items;
 }
 export function serialize(head, items) {
-  // group by date|source, preserve order of first appearance
-  const groups = []; const byKey = {};
-  items.forEach((it) => {
+  const out = []; let curKey = null;
+  (items || []).forEach((it) => {
     const key = it.date + "|" + it.source;
-    if (!byKey[key]) { byKey[key] = { date: it.date, source: it.source, items: [] }; groups.push(byKey[key]); }
-    byKey[key].items.push(it);
+    if (it._before && it._before.length) out.push(...it._before);
+    else if (key !== curKey) out.push("", `## ${it.date} | [[${it.source || "כללי"}]]`);
+    curKey = key;
+    out.push(`- ${it.text}  <!-- owner:${it.owner} status:${it.status}${it.tag ? " " + it.tag : ""} -->`);
+    if (it.result && it.result.trim()) out.push(`  - **תוצאה:** ${it.result.trim()}`);
+    if (it._after && it._after.length) out.push(...it._after);
   });
-  let out = head + "\n";
-  groups.forEach((g) => {
-    out += `\n## ${g.date} | [[${g.source || "כללי"}]]\n`;
-    g.items.forEach((it) => {
-      out += `- ${it.text}  <!-- owner:${it.owner} status:${it.status} -->\n`;
-      if (it.result && it.result.trim()) out += `  - **תוצאה:** ${it.result.trim()}\n`;
-    });
-  });
-  return out;
+  if (items && items._tail && items._tail.length) out.push(...items._tail);
+  return head + out.join("\n");
 }
 
 export function laneOf(it) { return it.status === "done" ? "done" : (it.owner === "assaf" ? "you" : "machine"); }

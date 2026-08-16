@@ -38,11 +38,23 @@ export async function listInbox(token, top = 50) {
   return (await res.json()).value;
 }
 
+// 16/08/2026 - יישור סופי-שורה בגבול הקריאה, אחרי שהדלפק התעוור בשקט.
+// כל הפרסרים של האפליקציה (parseBody ב-actions, parseOpen ב-questions) מפצלים על
+// "\n" ומסיימים ביטוי ב-$ בלי דגל m. ב-JS הביטוי . אינו בולע \r, ולכן שורה שמסתיימת
+// ב-CRLF פשוט לא נתפסת: לא כותרת, לא פריט, אפס תוצאות. אין הודעת שגיאה - הקובץ
+// נקרא, נפרס, ומחזיר רשימה ריקה. ב-16/08 כותב חיצוני (PowerShell/סקריפט Windows,
+// שכותב CRLF כברירת-מחדל) המיר את actions.md ו-open-questions.md במלואם, ושני
+// שלישים מהדלפק נכבו: 17 פעולות ממתינות ו-22 שאלות פתוחות נעלמו מהמסך.
+// התיקון יושב כאן ולא בכל פרסר בנפרד, כי הגבול הוא המקום היחיד שכל קורא עובר בו.
+// הכותבים של האפליקציה (serialize, removeQuestion) פולטים LF ממילא, ולכן קריאה
+// מנורמלת + כתיבה מנורמלת מחזירות את הקובץ ל-LF מעצמן.
+function normEol(t) { return typeof t === "string" ? t.replace(/\r\n/g, "\n") : t; }
+
 // Read a thread file's text (relPath relative to the inbox).
 export async function getFileText(token, relPath) {
   const res = await fetch(inboxUrl(relPath, "/content"), { headers: { Authorization: `Bearer ${token}` } });
   await checkResponse(res);
-  return res.text();
+  return normEol(await res.text());
 }
 
 // Overwrite a thread file in place (used by the lock button).
@@ -64,7 +76,7 @@ export async function getDrivePathText(token, fullPath) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 404) return null;
   await checkResponse(res);
-  return res.text();
+  return normEol(await res.text());
 }
 
 // zi5i: create a calendar event via Graph (POST /me/events). The write happens
