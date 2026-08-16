@@ -614,7 +614,7 @@ export function loadEyesPassDemo(container) {
 // אותו דפוס קריאה כמו הלוח/מעבר-העיניים: קורא loom-summary.json שהמנצח מפרסם.
 // שונה מהם באחד: קריאה-בלבד לחלוטין - אין טופס, אין מיקרופון, אין שליחה, אין נתיב-
 // כתיבה חוזר. עיקרון P2 (הגלם קדוש): הכרטיס נושא כותרת + סטטוס-תחנות + רלוונטיות
-// בלבד, בלי transcript/summary. פריטים רגישים (AdinVeod/D4) סוננו כבר בשרת.
+// בלבד, בלי transcript/summary. פריטים מהדום החתום סוננו כבר בשרת.
 const STATE_DOT = { ok: "green", warn: "amber", bad: "red" };
 const LOOM_STATUS_HE = { live: "חי", needs: "ממתין להכרעה", resolved: "הוכרע", superseded: "הוחלף", stale: "ישן", done: "הושלם" };
 

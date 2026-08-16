@@ -11,21 +11,17 @@
 import { getDrivePathText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast, micButton, onTap, startDictation } from "./ui.js";
+import { domains } from "./domains.js";
 
 const PRIOS = [["p1", "P1 גבוה"], ["p2", "P2 בינוני"], ["p3", "P3 נמוך"]];
 const TIMES = [["now", "עכשיו"], ["soon", "קרוב"], ["later", "מאוחר"], ["someday", "יום אחד"]];
 const DOMAINS = ["בנייה", "בריאות", "השקעות", "כספים", "יומיומי", "מחקר", "מסחור", "תודעה", "כללי"];
 // Vault merge 02/07: one private vault (Alma.R); old vault slugs live on as domain tags.
-const VAULT_DIR = {
-  "alma-r": "Alma.R", "alma-r-proj": "Alma.R · בנייה", "alma-health": "Alma.R · בריאות",
-  "alma-invest": "Alma.R · השקעות", "alma-finance": "Alma.R · כספים", "alma-daily": "Alma.R · יומיומי",
-  "alma-research": "Alma.R · מחקר", "alma-adinveod": "עדין ועוד · חתום",
-};
-const VAULT_OPTIONS = [
-  ["", "ללא ניתוב · רק נקה"], ["alma-r", "Alma.R (פרטי)"], ["alma-r-proj", "Alma.R · בנייה"],
-  ["alma-health", "Alma.R · בריאות"], ["alma-invest", "Alma.R · השקעות"], ["alma-finance", "Alma.R · כספים"],
-  ["alma-daily", "Alma.R · יומיומי"], ["alma-research", "Alma.R · מחקר"], ["alma-adinveod", "עדין ועוד · חתום"],
-];
+// 16/08/2026: שתי הרשימות עברו ל-alma-paths.json מאחורי ההזדהות (domains.js), כי
+// שם-הדום החתום היה קריא בקוד ציבורי. הערכים ב-VAULT_DIR אינם תוויות בלבד - הם
+// משמשים גם כמקטע-נתיב בכתיבה, ולכן הועברו מילה-במילה.
+const VAULT_DIR = () => domains().questions_dirs;
+const VAULT_OPTIONS = () => domains().questions_vaults;
 const MARKER_Q = "<!-- שאלות פתוחות חדשות - הוסף מתחת לשורה הזו -->";
 
 function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
@@ -194,7 +190,7 @@ function renderQ(q, h) {
   form.appendChild(fieldRow("תגית", tagWrap));
 
   const sel = mk("select");
-  VAULT_OPTIONS.forEach(([slug, label]) => { const o = mk("option", null, label); o.value = slug; sel.appendChild(o); });
+  VAULT_OPTIONS().forEach(([slug, label]) => { const o = mk("option", null, label); o.value = slug; sel.appendChild(o); });
   form.appendChild(fieldRow("ניתוב ההחלטה (הפצה)", sel));
 
   const btn = mk("button", "commit", "✓ ענה והפץ"); btn.type = "button";
@@ -222,7 +218,7 @@ function markCleared(row, vault) {
   row.classList.add("locked", "just-locked");
   const form = row.querySelector(".thr-form"); if (form) form.remove();
   const chev = row.querySelector(".chev"); if (chev) chev.remove();
-  row.appendChild(mk("span", "locked-tag", vault ? "נענה · נותב → " + (VAULT_DIR[vault] || vault) : "נענה · נוקה"));
+  row.appendChild(mk("span", "locked-tag", vault ? "נענה · נותב → " + (VAULT_DIR()[vault] || vault) : "נענה · נוקה"));
   const list = row.closest(".thr-list"); const cnt = list && list.parentElement.querySelector(".thr-count");
   if (cnt) { const open = list.querySelectorAll(".thr:not(.locked)").length; cnt.textContent = `${open} ממתינות להחלטה`; }
 }
@@ -317,13 +313,13 @@ export async function answerQuestionCore(token, q, answer, opts) {
   await putDrivePathText(token, CONFIG.openQuestionsPath, removeQuestion(curOpen, q.project, q.text));
 
   let routeError = null;
-  if (o.vault && VAULT_DIR[o.vault]) {
+  if (o.vault && VAULT_DIR()[o.vault]) {
     try {
       const meta = ["---", "type: answered-question", `project: ${q.project}`, `answered: ${stamp()}`,
         o.priority ? `priority: ${o.priority}` : "", o.timing ? `timing: ${o.timing}` : "",
         o.tag ? `domain_tag: ${o.tag}` : "", "---"].filter(Boolean).join("\n");
       const body = `\n## שאלה\n${q.text}\n\n## תשובה\n${answer}\n`;
-      const path = `Alma Mind/${VAULT_DIR[o.vault]}/00-raw/threads/q-${id}-${date}.md`;
+      const path = `Alma Mind/${VAULT_DIR()[o.vault]}/00-raw/threads/q-${id}-${date}.md`;
       await putDrivePathText(token, path, meta + body);
     } catch (e) { routeError = e.message; }
   }
@@ -338,7 +334,7 @@ async function doAnswer(token, q, opts, row, btn) {
     const { routeError } = await answerQuestionCore(token, q, answer, opts);
     if (routeError) toast("נשמר, אך הניתוב לוולט נכשל: " + routeError);
     markCleared(row, opts.vault);
-    toast(opts.vault ? "נענה · נותב אל " + (VAULT_DIR[opts.vault] || opts.vault) : "נענה · נוקה מהבקלוג");
+    toast(opts.vault ? "נענה · נותב אל " + (VAULT_DIR()[opts.vault] || opts.vault) : "נענה · נוקה מהבקלוג");
   } catch (e) {
     btn.disabled = false; btn.textContent = "✓ ענה והפץ";
     toast("שמירה נכשלה: " + e.message);

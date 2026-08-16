@@ -13,6 +13,7 @@ import { loadAnswer, loadAnswerDemo } from "./answer.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
+import { primeDomains } from "./domains.js";
 
 const pages = {
   home: document.getElementById("page-home"),
@@ -171,6 +172,10 @@ let counts = null;
 async function refreshCounts() {
   const token = await getToken();
   if (!token) return;
+  // רשימות-הדומים חיות מאחורי ההזדהות (ראה domains.js). נטענות פעם אחת לסשן,
+  // כאן, כי זו הנקודה הראשונה בהפעלה שיש בה טוקן. לא ממתינים לה: משטח שנפתח
+  // לפני שהיא חזרה מציג את ברירת-המחדל המצומצמת ולא נשבר.
+  primeDomains(token);
   try { counts = await loadCounts(token); paintCounts(counts); } catch { /* counts are best-effort */ }
 }
 

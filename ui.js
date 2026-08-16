@@ -11,7 +11,7 @@
 // הבלוק כאן מוחזר מההיסטוריה כלשונו, בלי שום תוספת: לחיצה אחת שווה קליטה אחת בלי
 // לולאה, הטקסט מוצב מחדש ולא נצבר, וכל משפט שנסגר נכתב לשדה תוך כדי הדיבור ונשאר
 // יציב וניתן לעריכה.
-export const APP_VERSION = "counter v2 · mic-23/06";
+export const APP_VERSION = "counter v3 · mic-23/06";
 
 let toastEl = null;
 let toastTimer = null;

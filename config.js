@@ -26,6 +26,13 @@ export const CONFIG = {
   openQuestionsArchivePath: "Alma Mind/Alma.R/99-harvest/open-questions-archive.md",
   resolvedLogPath: "Alma Mind/Alma.R/99-harvest/resolved-log.jsonl",
 
+  // 16/08/2026 - מפת-הנתיבים הקנונית של המכונה (alma-paths.json, כלל: "מקור-אמת
+  // יחיד; רכיב שמקודד נתיב מיושר אליו בהזדמנות הקרובה"). האפליקציה קוראת מכאן את
+  // תוויות-הדומים במקום להחזיק אותן בקוד. הסיבה: הריפו ציבורי, ושמו של הדום החתום
+  // היה קריא לכל אדם באינטרנט מ-17/06 - תווית-מבנה היא חשיפה גם כשהתוכן חתום.
+  // הקובץ יושב מאחורי ההזדהות, ולכן השם נקרא רק אחרי כניסה.
+  pathsPath: "Alma Mind/Alma.R/00-system/alma-paths.json",
+
   // Actions lane (the 4th leg): action items extracted from threads/questions/brief.
   // The machine does the safe autonomous ones; owner:assaf items wait for you.
   // Full CRUD from any surface (add/edit/delete/status) - read/write via Graph.

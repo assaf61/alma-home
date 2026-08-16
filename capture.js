@@ -9,6 +9,7 @@ import { getToken } from "./auth.js";
 import { uploadCapture, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast, withMic } from "./ui.js";
+import { domains } from "./domains.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -18,9 +19,11 @@ const URL_ANY_RE = /https?:\/\/\S+/;
 // Instant triage from memory (Assaf 24/06: the phone is a pipeline - capture fast,
 // then route on the spot from memory, no waiting for the transcript). A lock here
 // writes a single-writer op; enrich fills the transcript in async.
-const DOMES = [["alma-r", "עלמא · פרטי"], ["alma-adinveod", "עדין ועוד · חתום"], ["alma-public", "ציבורי · עתידי"], ["alma-threads", "השאר ב-inbox"]];
+// הרשימה נטענת מ-alma-paths.json אחרי הזדהות (domains.js) ולא יושבת כאן: שם-הדום
+// החתום היה קריא בקוד-מקור ציבורי מ-17/06.
+const DOMES = () => domains().capture_domes;
 const PRIOS = [["p1", "P1"], ["p2", "P2"], ["p3", "P3"]];
-const domeLabel = (v) => (DOMES.find((d) => d[0] === v) || [, v])[1];
+const domeLabel = (v) => (DOMES().find((d) => d[0] === v) || [, v])[1];
 const idOf = (fileName) => { const m = fileName.match(/-([0-9a-z]{4})\.md$/); return m ? m[1] : fileName.replace(/\.md$/, ""); };
 function nowStamp() { const d = new Date(), p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 
@@ -269,7 +272,7 @@ function showTriage(fileName, token) {
   let dome = "alma-r", prio = "";
   sheet.appendChild(mk("div", "cap-flbl", "דום"));
   const domeWrap = mk("div", "cap-pills");
-  DOMES.forEach(([v, l]) => {
+  DOMES().forEach(([v, l]) => {
     const b = mk("button", "cap-pill" + (v === dome ? " sel" : ""), l); b.type = "button";
     b.addEventListener("click", () => { domeWrap.querySelectorAll(".cap-pill").forEach((p) => p.classList.remove("sel")); b.classList.add("sel"); dome = v; });
     domeWrap.appendChild(b);

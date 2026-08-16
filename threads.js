@@ -16,23 +16,20 @@
 import { listInbox, getFileText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast, onTap, startDictation } from "./ui.js";
+import { domains } from "./domains.js";
 
 // Three-dome model (Assaf 24/06: "moving from nine vaults to three"). The old
 // 9 per-domain vaults collapse into ONE private working dome (Alma.R); the domain
 // (health/invest/...) lives on as the domain_tag below, not as a separate vault.
 //   - עלמא · פרטי   = Alma.R, the dome where Assaf works (default, everything connected)
-//   - עדין ועוד · חתום = AdinVeod, sealed, never leaves
+//   - the sealed dome = never leaves; its name is not written here (see domains.js)
 //   - הדום הציבורי   = future/working dome - not connecting with anyone yet, so it is a
 //                      placeholder; a thread sent here still lives in Alma.R for now but is
 //                      STAMPED filed_vault: alma-public so the public set is findable when
 //                      that dome is actually built (distribute.py maps alma-public -> Alma.R).
 //   - השאר ב-inbox  = don't file
-const VAULT_OPTIONS = [
-  ["alma-r", "עלמא · פרטי (כאן אני עובד)"],
-  ["alma-adinveod", "עדין ועוד · חתום"],
-  ["alma-public", "הדום הציבורי · עתידי"],
-  ["alma-threads", "השאר ב-inbox"],
-];
+// 16/08/2026: נטענת מ-alma-paths.json אחרי הזדהות (domains.js), לא מקודדת כאן.
+const VAULT_OPTIONS = () => domains().threads_vaults;
 // What will be done with the thread (mirrors triage BUCKETS).
 const BUCKETS = [
   ["promote", "קידום לוולט"], ["action", "פעולה מיידית"], ["research", "מחקר עומק"],
@@ -121,7 +118,7 @@ function toView(item, text) {
   };
 }
 
-function vaultLabel(slug) { const f = VAULT_OPTIONS.find(([v]) => v === slug); return f ? f[1] : slug; }
+function vaultLabel(slug) { const f = VAULT_OPTIONS().find(([v]) => v === slug); return f ? f[1] : slug; }
 
 // ---- a single-select pill group; returns the element, read via selectedPill() ----
 function pillGroup(opts, selected) {
@@ -184,7 +181,7 @@ function renderRow(v, onLock) {
 
   // vault (9 real folders -> select; pre-selects the machine's suggestion)
   const sel = mk("select");
-  VAULT_OPTIONS.forEach(([slug, label]) => { const o = mk("option", null, label); o.value = slug; if (slug === v.sug) o.selected = true; sel.appendChild(o); });
+  VAULT_OPTIONS().forEach(([slug, label]) => { const o = mk("option", null, label); o.value = slug; if (slug === v.sug) o.selected = true; sel.appendChild(o); });
   form.appendChild(fieldRow("לאן שייך · וולט", sel));
 
   // domain tag (free text + quick pills)
