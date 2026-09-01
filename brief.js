@@ -6,7 +6,7 @@
 //     instead show a compact CTA that routes to #threads
 //   - take data live (no embedded encrypted payload / forge)
 import { CONFIG } from "./config.js";
-import { getDrivePathText } from "./graph.js";
+import { getDrivePathText, getDrivePathBlob } from "./graph.js";
 import { ENGINE_PIPE } from "./engine.js";
 
 const LOGO = "./alma-enso.jpg";
@@ -168,6 +168,34 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   head.appendChild(g);
   app.appendChild(head);
 
+  // 01/09 (RESTRUCTURE הכרעה 2): מהדורת-רדיו - הבריף שהוקלט על התחנה (הילה+אווה)
+  // ומונח בפיד. מתנגן מכל מקום. בלי token (דמו/מנותק) אין נגן - קישור שמת מוסתר (הכרעה 4).
+  if (token) {
+    const radioWrap = mk("div", "radio-strip");
+    app.appendChild(radioWrap);
+    (async () => {
+      try {
+        const manTxt = await getDrivePathText(token, CONFIG.briefPath.replace("brief-latest.json", "brief-radio-latest.json"));
+        if (!manTxt) return;
+        const man = JSON.parse(manTxt);
+        const mins = man.duration_sec ? `${Math.floor(man.duration_sec / 60)}:${String(Math.round(man.duration_sec % 60)).padStart(2, "0")}` : "";
+        const btn = mk("button", "radio-btn", `🔊 מהדורת רדיו${mins ? " · " + mins : ""}`);
+        radioWrap.appendChild(btn);
+        btn.addEventListener("click", async () => {
+          btn.disabled = true; btn.textContent = "טוען…";
+          try {
+            const blob = await getDrivePathBlob(token, CONFIG.briefPath.replace("brief-latest.json", "brief-radio-latest.mp3"));
+            if (!blob) throw new Error("no mp3");
+            const audio = document.createElement("audio");
+            audio.controls = true; audio.src = URL.createObjectURL(blob); audio.autoplay = true;
+            audio.className = "radio-audio";
+            radioWrap.replaceChild(audio, btn);
+          } catch { btn.textContent = "הרדיו לא נטען - נסה שוב"; btn.disabled = false; }
+        });
+      } catch { /* אין מהדורה בפיד - אין נגן, בשקט */ }
+    })();
+  }
+
   if (demo) {
     const banner = mk("div", "demo-banner", "מצב הדגמה · לא מחובר (נתונים סינתטיים)");
     app.appendChild(banner);
@@ -178,7 +206,9 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   {
     const dis = readLS(DISMISS_KEY, {});
     const dismissed = dis.date === todayStr() ? (dis.ids || []) : [];
-    const src = (d.urgent && d.urgent.length ? d.urgent
+    // 01/09 הכרעה 3: שורת-העצירה (טיוטות ממתינות, SKILL שלב 1) קודמת לכל - עבודה גמורה שמחכה לשילוח.
+    const stops = (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: "🛑 " + (typeof w === "string" ? w : (w.title || JSON.stringify(w))), body: (w && w.body) || "" }));
+    const src = stops.concat(d.urgent && d.urgent.length ? d.urgent
       : (d.spotlight || []).filter((s) => s.tone === "err").map((s, i) => ({ id: "sp-" + i, title: s.title, body: s.body })));
     const items = src.filter((u) => !dismissed.includes(u.id)).slice(0, 3);
     if (items.length) {
@@ -426,6 +456,17 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
 
   // services
   if (d.services && d.services.length) {
+    // 01/09 צ'אנק ג: וולטים ו-gated - שני השדות שהרנדרר לא הציג (פער-הפיד נסגר כאן)
+    if ((d.vaults && d.vaults.length) || (d.gated && d.gated.length)) {
+      let s = sec("וולטים");
+      const c = mk("div", "card");
+      if (d.vaults && d.vaults.length) {
+        const names = d.vaults.map((v) => Array.isArray(v) ? (v[1] || v[0]) : String(v));
+        c.appendChild(mk("p", "muted", names.join(" · ")));
+      }
+      (d.gated || []).forEach((g) => c.appendChild(mk("p", "muted", "🔒 " + (typeof g === "string" ? g : (g.title || JSON.stringify(g))))));
+      s.appendChild(c); app.appendChild(s);
+    }
     let s = sec("שירותים"); const c = mk("div", "card"); const box = mk("div", "muted");
     d.services.forEach((x, i) => { if (i) box.appendChild(document.createElement("br")); box.appendChild(document.createTextNode(x)); });
     c.appendChild(box); s.appendChild(c); edRoot.appendChild(s);
@@ -453,5 +494,34 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     app.appendChild(fold);
   }
 
+  // 01/09 הכרעה 4 (מדיניות-קישורים): קישור מקומי-בלבד (localhost/127/file) מת בכל
+  // משטח שאינו התחנה - שם הוא מוחלף בתווית שקטה במקום שורה-מתה לוחצת.
+  const LOCAL_SURFACE = ["127.0.0.1", "localhost"].includes(location.hostname);
+  if (!LOCAL_SURFACE) {
+    app.querySelectorAll("a[href]").forEach((a) => {
+      if (/^(https?:\/\/(127\.|localhost)|file:)/.test(a.href)) {
+        a.replaceWith(mk("span", "muted", a.textContent.replace(/\s*←\s*$/, "") + " · זמין בתחנה"));
+      }
+    });
+  }
+
+  // 01/09 הכרעה 3 (רזה-קודם): במסך צר, כל סקשן אחרי היום/קרוב מתקפל למרחיב.
+  // שום מידע לא נמחק - רק הסדר. בדסקטופ הכל נשאר פרוש.
+  if (!window.matchMedia("(min-width: 900px)").matches) {
+    const KEEP_OPEN = new Set(["היום", "קרוב · ימים הבאים"]);
+    app.querySelectorAll("section").forEach((secEl) => {
+      const over = secEl.querySelector(".shead .over");
+      if (!over || KEEP_OPEN.has(over.textContent)) return;
+      const det = document.createElement("details");
+      det.className = "fold-sec";
+      const sum = document.createElement("summary");
+      sum.textContent = over.textContent;
+      det.appendChild(sum);
+      secEl.parentNode.insertBefore(det, secEl);
+      const sh = secEl.querySelector(".shead");
+      if (sh) sh.remove();
+      det.appendChild(secEl);
+    });
+  }
   app.appendChild(mk("p", "disc", "פחות, אבל טוב יותר"));
 }

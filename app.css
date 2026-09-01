@@ -572,3 +572,14 @@ img, audio, video, iframe, svg { max-width: 100%; }
   .brief-surface > .disc { grid-column: 1 / -1; }
   .brief-surface > .ed-fold { grid-column: 1; }
 }
+
+/* 01/09 מהדורת-רדיו: רצועה מתחת לכותרת הבריף */
+.radio-strip{margin:10px 0 4px;}
+.radio-btn{border:1px solid var(--border);background:var(--surface);color:var(--txt);border-radius:999px;padding:10px 18px;font:inherit;cursor:pointer;}
+.radio-btn:hover{border-color:var(--acc);}
+.radio-audio{width:100%;max-width:420px;display:block;}
+
+/* 01/09 רזה-קודם: מרחיבי-סקשן במובייל */
+.fold-sec{margin:14px 0;border:1px solid var(--border);border-radius:10px;padding:0 12px;}
+.fold-sec>summary{cursor:pointer;padding:12px 0;font-weight:600;color:var(--txt);list-style-position:inside;}
+.fold-sec>section{margin-top:0;}

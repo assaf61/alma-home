@@ -148,6 +148,29 @@ function paintCounts(c) {
     } else if (bchip) {
       bchip.hidden = true;
     }
+
+    // ו-2 (16/08, ROADMAP#ו-2 / open-items#vav-2-watcher-comprehension): מדד-תנועה לצד מדד-הדופק.
+    // "עודכן HH:MM" לבד מוכיח שרענון-הספירות רץ (כל 45 דק' / במעבר-דף) - לא שמשהו בפועל השתנה.
+    // חתימת-הספירות נשמרת ומושווית; קפוא לאורך ימים למרות דופק טרי הוא בדיוק תבנית סמטה-102.
+    let pchip = document.getElementById("chip-pulse");
+    if (!pchip) { pchip = mk("span", "chip pulse"); pchip.id = "chip-pulse"; chips.appendChild(pchip); }
+    const now = new Date();
+    const sig = JSON.stringify({ q: c.questions, a: c.actions, t: c.threads, bn: c.briefNew });
+    let changeAt = localStorage.getItem("almaHomeMoveAt");
+    if (localStorage.getItem("almaHomeMoveSig") !== sig) {
+      localStorage.setItem("almaHomeMoveSig", sig);
+      changeAt = now.toISOString();
+      localStorage.setItem("almaHomeMoveAt", changeAt);
+    }
+    const ageMin = changeAt ? Math.round((now - new Date(changeAt).getTime()) / 60000) : null;
+    const timeTxt = now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+    let moveTxt = "";
+    if (ageMin !== null) {
+      const ic = ageMin < 1 ? "🟢" : (ageMin < 24 * 60 ? "🟢" : (ageMin < 7 * 24 * 60 ? "🟡" : "🔴"));
+      moveTxt = " · " + ic + " " + (ageMin < 1 ? "זז עכשיו" : "קבוע " + (ageMin < 60 ? ageMin + "ד׳" : Math.round(ageMin / 60) + "שע׳"));
+    }
+    pchip.textContent = "עודכן " + timeTxt + moveTxt;
+    pchip.title = "מדד-דופק: נבדק ב-" + timeTxt + " (כל 45 דק׳ / במעבר-דף). מדד-תנועה: הספירות (שאלות/פעולות/חוטים) השתנו לאחרונה לפני " + (ageMin == null ? "—" : ageMin + " דק׳") + ".";
   }
 }
 

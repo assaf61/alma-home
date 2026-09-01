@@ -79,6 +79,15 @@ export async function getDrivePathText(token, fullPath) {
   return normEol(await res.text());
 }
 
+// 01/09 (מהדורת-רדיו): שליפה בינארית מאותו נתיב-Graph - ל-mp3 של הבריף.
+export async function getDrivePathBlob(token, fullPath) {
+  const url = `${GRAPH}/me/drive/root:/${encPath(fullPath)}:/content`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  await checkResponse(res);
+  return res.blob();
+}
+
 // zi5i: create a calendar event via Graph (POST /me/events). The write happens
 // only on your tap (zero idle egress). Times are local wall-clock with an explicit
 // timeZone so Graph stores them correctly regardless of the device locale.

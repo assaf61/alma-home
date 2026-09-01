@@ -257,6 +257,24 @@ export async function loadQuestions(token, container) {
   try { text = await getDrivePathText(token, CONFIG.openQuestionsPath); }
   catch (e) { container.innerHTML = ""; container.appendChild(mk("p", "err-msg", "שגיאת טעינה: " + e.message)); return; }
 
+  // חסינות-404 (הכרעת אסף 25/08/2026). getDrivePathText מחזיר null כשגרף מחזיר 404,
+  // וה-null זרם ל-parseOpen("") - כלומר קובץ חסר נראה על המסך בדיוק כמו לוח ריק.
+  // שני מצבים שונים לגמרי, אותה תצוגה. עכשיו נופלים לארכיון, ואם גם הוא איננו,
+  // אומרים את זה במילים במקום להעמיד פנים שהכל תקין.
+  if (text === null) {
+    let fallback = null;
+    try { fallback = await getDrivePathText(token, CONFIG.openQuestionsArchivePath); }
+    catch { /* גם הארכיון אינו נגיש - ההודעה שלמטה מטפלת */ }
+    if (fallback === null) {
+      container.innerHTML = "";
+      container.appendChild(mk("p", "err-msg", "קובץ השאלות לא נמצא"));
+      container.appendChild(mk("p", "muted", "הלוח אינו ריק - הקובץ עצמו איננו בנתיב שלו, וגם לא בארכיון. אם הועבר, יש לעדכן את הנתיב בהגדרות."));
+      return;
+    }
+    container.appendChild(mk("p", "muted", "הקובץ הראשי לא נמצא - מוצג הארכיון."));
+    text = fallback;
+  }
+
   const groups = parseOpen(text || "");
   const all = []; groups.forEach((g) => g.questions.forEach((q) => { q._k = Math.random().toString(36).slice(2, 8); all.push(q); }));
 

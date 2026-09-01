@@ -19,11 +19,13 @@
  * Config: window.RA_TTS = 'http://127.0.0.1:8861/loom-tts' (default). window.RA_SEL to tune blocks.
  * Endpoint contract: POST {text} → audio/mpeg. Sent text/plain to stay a CORS "simple request".
  */
-(function () {
+(function boot() {
   if (window.__readAloud) return; window.__readAloud = true;
   var TTS = window.RA_TTS || 'http://127.0.0.1:8861/loom-tts';
 
+  if (!document.getElementById('ra-css')) {
   var css = document.createElement('style');
+  css.id = 'ra-css';
   css.textContent =
     '.ra-bar{position:fixed;inset-inline-start:18px;inset-block-end:18px;z-index:9999;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E6E1D7;border-radius:999px;padding:8px 10px;box-shadow:0 6px 24px rgba(40,38,32,.16);direction:rtl;font-family:inherit}'
   + '.ra-bar button{border:none;background:#EEF2EC;color:#2C2C28;cursor:pointer;border-radius:999px;padding:9px 12px;font:inherit;font-size:14px;line-height:1;display:flex;align-items:center;gap:6px}'
@@ -37,13 +39,29 @@
   + '.ra-active{background:#FBF3DD!important;box-shadow:0 0 0 4px #FBF3DD;border-radius:6px;transition:background .2s}'
   + '@media print{.ra-bar{display:none}}';
   document.head.appendChild(css);
+  }
 
   var root = document.querySelector('.wrap') || document.querySelector('main') || document.body;
   var SEL = window.RA_SEL || 'h1,h2,h3,.lede,.kicker,.section-note,.meta,.stat,.qcard .tag,.qcard li,th,td,.item .name,.item p,.callout blockquote,.drop-line,p,li,blockquote,.sig,footer p';
   var nodes = Array.prototype.slice.call(root.querySelectorAll(SEL));
   nodes = nodes.filter(function (n) { return !nodes.some(function (o) { return o !== n && o.contains(n); }); })
                .filter(function (n) { return (n.innerText || '').trim().length > 1; });
-  if (!nodes.length) return;
+  if (!nodes.length) {
+    // 28/08/2026: תוכן שנכנס אחרי הטעינה - ממתינים לו במקום לצאת בשקט ולהשאיר עמוד בלי הקראה.
+    window.__readAloud = false;
+    if (!window.__readAloudWaiting) {
+      window.__readAloudWaiting = true;
+      var tries = 0;
+      var iv = setInterval(function () {
+        var r = document.querySelector('.wrap') || document.querySelector('main') || document.body;
+        var found = r ? Array.prototype.slice.call(r.querySelectorAll(SEL))
+              .filter(function (n) { return (n.innerText || '').trim().length > 1; }) : [];
+        if (found.length) { clearInterval(iv); window.__readAloudWaiting = false; boot(); }
+        else if (++tries > 1800) clearInterval(iv);   // ~15 דקות ואז מרפים
+      }, 500);
+    }
+    return;
+  }
 
   // ── split a block into single-language runs (he | en); neutral chars stick to the current run ──
   function classOf(ch) {
