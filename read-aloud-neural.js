@@ -37,7 +37,9 @@
   + '.ra-bar .ra-spd{font-size:12px;color:#726F66;min-width:30px;text-align:center}'
   + '.ra-bar .ra-mode{font-size:11px;color:#9a968c;min-width:40px;text-align:center}'
   + '.ra-active{background:#FBF3DD!important;box-shadow:0 0 0 4px #FBF3DD;border-radius:6px;transition:background .2s}'
-  + '@media print{.ra-bar{display:none}}';
+  + '@media print{.ra-bar{display:none}}'
+  // 05/09/2026, הכרעת אסף (פס + צילום-מסך 20:02): פס-ההקראה מכסה את הכפתורים בטלפון - מוסתר עד 640px; במחשב נשאר. מהדורת-הרדיו של הבריף אינה תלויה בו.
+  + '@media (max-width:640px){.ra-bar{display:none}}';
   document.head.appendChild(css);
   }
 

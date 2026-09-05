@@ -3,7 +3,7 @@
 // network. No sensitive data is ever cached: the brief and threads are fetched
 // live per session and rendered in memory.
 
-const CACHE = "ah-shell-v41"; // 05/09/2026: save-guard in actions.js
+const CACHE = "ah-shell-v42"; // 05/09/2026: save-guard + read-aloud hidden on phone
 // 16/08/2026: counter.js נוסף ב-175db9b ומעולם לא נכנס לרשימה כאן, כלומר אופליין
 // הדלפק לא נטען כלל. domains.js חדש. שניהם נכנסים, והגרסה עולה כדי שהמטמון הישן
 // לא ישרוד ויגיש קליפה חסרה.
