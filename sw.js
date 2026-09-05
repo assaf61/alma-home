@@ -3,7 +3,7 @@
 // network. No sensitive data is ever cached: the brief and threads are fetched
 // live per session and rendered in memory.
 
-const CACHE = "ah-shell-v43"; // 05/09/2026: fronts below cards, capped at 3
+const CACHE = "ah-shell-v44"; // 05/09/2026: resume card at the bottom, 3 rows
 // 16/08/2026: counter.js נוסף ב-175db9b ומעולם לא נכנס לרשימה כאן, כלומר אופליין
 // הדלפק לא נטען כלל. domains.js חדש. שניהם נכנסים, והגרסה עולה כדי שהמטמון הישן
 // לא ישרוד ויגיש קליפה חסרה.

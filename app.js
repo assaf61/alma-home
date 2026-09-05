@@ -248,7 +248,7 @@ function resumeCard(acts, qs) {
   card.appendChild(h);
   if (!total) { card.appendChild(mk("div", "card empty", "אין דברים פתוחים שממתינים לך כרגע ✓")); return card; }
   const list = mk("div", "resume-list");
-  const MAXN = 7; let shown = 0;
+  const MAXN = 3; let shown = 0;   // 05/09/2026 (אסף): לא יותר משלוש-ארבע, והשאר מאחורי "ראה הכל"
   acts.forEach((a) => { if (shown < MAXN) { list.appendChild(resumeRow(a, "action")); shown++; } });
   qs.forEach((q) => { if (shown < MAXN) { list.appendChild(resumeRow(q, "question")); shown++; } });
   card.appendChild(list);
@@ -266,7 +266,7 @@ async function prependResume(container, token) {
       getDrivePathText(token, CONFIG.openQuestionsPath).catch(() => ""),
     ]);
     const node = resumeCard(listWaitingActions(aText || ""), listOpenQuestions(qText || ""));
-    container.insertBefore(node, container.firstChild);
+    container.appendChild(node);   // 05/09/2026 (אסף): עבודה רגילה יורדת למטה, בקופסה משלה; הראש שמור לדחוף
   } catch { /* best-effort: never block the brief */ }
 }
 const DEMO_RESUME_ACTS = [
@@ -304,7 +304,7 @@ async function renderHomeBrief(c) {
       if (data) {
         // 21/07: הקופסאות החיות בתוך הבריף החליפו את פס-הצ'יפים (phoe) - מידע פעם אחת.
         renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts, token });
-        await prependResume(c, token);                 // "המשך מכאן" sits at the very top
+        await prependResume(c, token);                 // "המשך מכאן" - מ-05/09 בתחתית הבית, לא בראש
         if (data.date) localStorage.setItem(BRIEF_SEEN_KEY, data.date);   // viewing home clears "new"
         paintCounts(counts);
         return;
