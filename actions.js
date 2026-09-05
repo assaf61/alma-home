@@ -340,9 +340,27 @@ export async function loadActions(token, container) {
   const items = parseBody(splitHead(text || "").body);
 
   let saving = false;
+  const loadedLen = (text || "").length;
+  const loadedItems = items.length;
+  // 05/09/2026 - שער-הדריסה. באותו ערב שמירה אחת מהטלפון החליפה קובץ של 119K בקובץ של 1K:
+  // הראש ושורה ידנית אחת. serialize בונה את הקובץ כולו מהמודל, ולכן מודל ריק או חלקי
+  // (טעינה שחזרה קצרה, גרסת-אפליקציה ישנה במטמון, 404 חולף) מוחק את כל נתיב-הפעולות.
+  // הכלל: לפני PUT קוראים שוב מהענן; אם התוצר קטן מחצי ממה שיש בענן, או שהמודל ריק
+  // בעוד שבענן יש פריטים - לא שומרים, ומודיעים. הפריט החדש נשאר על המסך ולא אובד.
   const save = async (model) => {
     if (saving) return; saving = true;
-    try { await putDrivePathText(token, CONFIG.actionsPath, serialize(head, model)); }
+    try {
+      const out = serialize(head, model);
+      let cloud = null;
+      try { cloud = await getDrivePathText(token, CONFIG.actionsPath); } catch { cloud = null; }
+      const ref = Math.max(loadedLen, (cloud || "").length);
+      const cloudItems = cloud ? parseBody(splitHead(cloud).body).length : loadedItems;
+      if ((ref > 2000 && out.length < ref * 0.5) || (cloudItems > 0 && (model || []).length === 0)) {
+        toast("לא נשמר: השמירה הייתה מוחקת את רוב נתיב-הפעולות (" + out.length + " מול " + ref + " תווים). רענן את הדף ונסה שוב.");
+        return;
+      }
+      await putDrivePathText(token, CONFIG.actionsPath, out);
+    }
     catch (e) { toast("שמירה נכשלה: " + e.message); }
     finally { saving = false; }
   };
