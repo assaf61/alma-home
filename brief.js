@@ -397,23 +397,6 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     edRoot.appendChild(s);
   }
 
-  // fronts
-  if (!hasEdition && d.fronts && d.fronts.length) {
-    let s = sec("איפה אנחנו · מה פתוח");
-    const fc = mk("div", "card");
-    d.fronts.forEach((f) => {
-      const nrow = mk("div", "num"); nrow.appendChild(mk("div", "n", String(f.n)));
-      const b = mk("div", "b"); const h2 = mk("h2");
-      h2.appendChild(document.createTextNode(f.title + " "));
-      if (f.asap) h2.appendChild(mk("span", "tag asap", "ASAP"));
-      b.appendChild(h2); b.appendChild(mk("div", "muted", f.body));
-      if (f.trigger) { const tl = mk("div", "trig-line"); tl.appendChild(mk("span", "tag trig", f.trigger)); b.appendChild(tl); }
-      nrow.appendChild(b); fc.appendChild(nrow);
-    });
-    s.appendChild(fc);
-    if (d.frontsNote) s.appendChild(mk("p", "hint", d.frontsNote));
-    edRoot.appendChild(s);
-  }
 
   // spotlight (מדלג על מה שכבר קודם לרצועת-החירום - מידע לא מופיע פעמיים)
   if (!hasEdition && d.spotlight && d.spotlight.length) {
@@ -441,6 +424,25 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       if (o.trigger) { const t = mk("div", "trig-line"); t.appendChild(mk("span", "tag trig", o.trigger)); c.appendChild(t); }
       s.appendChild(c);
     });
+    edRoot.appendChild(s);
+  }
+
+  // fronts = שאלות אליך. 05/09/2026 (אסף): לא בראש הבריף, לכל היותר 3, בקופסה משלהן מתחת לעבודה.
+  // הראש שמור לרצועת-החירום (0-3 עוצרי-יום) בלבד.
+  if (!hasEdition && d.fronts && d.fronts.length) {
+    let s = sec("שאלות אליך · עד 3");
+    const fc = mk("div", "card");
+    d.fronts.slice(0, 3).forEach((f) => {
+      const nrow = mk("div", "num"); nrow.appendChild(mk("div", "n", String(f.n)));
+      const b = mk("div", "b"); const h2 = mk("h2");
+      h2.appendChild(document.createTextNode(f.title + " "));
+      if (f.asap) h2.appendChild(mk("span", "tag asap", "ASAP"));
+      b.appendChild(h2); b.appendChild(mk("div", "muted", f.body));
+      if (f.trigger) { const tl = mk("div", "trig-line"); tl.appendChild(mk("span", "tag trig", f.trigger)); b.appendChild(tl); }
+      nrow.appendChild(b); fc.appendChild(nrow);
+    });
+    s.appendChild(fc);
+    if (d.frontsNote) s.appendChild(mk("p", "hint", d.frontsNote));
     edRoot.appendChild(s);
   }
 
