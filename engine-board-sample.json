@@ -39,7 +39,7 @@
       ],
       "urgency": "stop",
       "exceptional": false,
-      "topic": "אגריפס",
+      "topic": "ספק-לדוגמה",
       "handle": {
         "kind": "url",
         "target": "https://outlook.office.com/mail/",
