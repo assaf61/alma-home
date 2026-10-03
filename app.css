@@ -583,3 +583,15 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .fold-sec{margin:14px 0;border:1px solid var(--border);border-radius:10px;padding:0 12px;}
 .fold-sec>summary{cursor:pointer;padding:12px 0;font-weight:600;color:var(--txt);list-style-position:inside;}
 .fold-sec>section{margin-top:0;}
+
+/* 03/10/2026 (שלב 1): מקטע מייל ומדדי-המכונה - על הטוקנים הקיימים בלבד */
+.mail-card .phead { margin-bottom: 6px; }
+.mail-list { list-style: none; padding: 0; margin: 0 0 8px; font-size: .9rem; }
+.mail-list li { padding: 5px 0; border-top: 1px solid var(--border); }
+.mail-list li:first-child { border-top: 0; }
+.mail-list a { color: var(--acc-d); }
+.mail-sub { margin: 8px 0 4px; font-size: .78rem; font-weight: 600; color: var(--txt-s); }
+.mail-back { color: var(--acc-d); font-weight: 600; }
+.mail-open { margin-top: 6px; }
+.machine-metrics { margin: 18px 16px 8px; border: 1px solid var(--border); border-radius: var(--r-m); background: var(--surface); padding: 0 14px; }
+.machine-metrics .mm-body { padding-bottom: 10px; font-size: .88rem; color: var(--txt-m); }

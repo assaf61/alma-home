@@ -3,7 +3,7 @@
 // Graph. Not signed in -> a login gate, plus a demo button so the UI can be
 // inspected locally without an interactive Microsoft login.
 import { initAuth, account, signIn, getToken, configured } from "./auth.js";
-import { renderBrief, loadBriefData, loadSampleData } from "./brief.js";
+import { renderBrief, renderMachineMetrics, loadBriefData, loadSampleData } from "./brief.js";
 import { loadThreads, loadThreadsDemo } from "./threads.js";
 import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
@@ -71,7 +71,8 @@ function refreshNarrative(statusCb) {
     const token = await getToken();
     if (!token) { statusCb("התחבר תחילה", true); return; }
     let before = "";
-    try { const d0 = await loadBriefData(token); before = (d0 && d0.body_built_at) || ""; } catch { /* ignore */ }
+    // 03/10/2026 (שלב 1, חוזה §9): הרענון נגמר כש-generated_at משתנה, לא body_built_at (בסוף-שבוע הגוף לא נבנה מחדש ולכן "הרענון תקוע").
+    try { const d0 = await loadBriefData(token); before = (d0 && d0.generated_at) || ""; } catch { /* ignore */ }
     try {
       const nonce = Date.now() + "-" + Math.random().toString(36).slice(2);
       await putDrivePathText(token, CONFIG.refreshFlagPath,
@@ -83,7 +84,7 @@ function refreshNarrative(statusCb) {
       if (Date.now() - start > 5 * 60 * 1000) { clearInterval(timer); statusCb("⚠ לא הגיע גוף חדש אחרי 5 דקות - הרענון כנראה נתקע. אמור לפייבל: 'הרענון תקוע'", true); return; }
       let d = null;
       try { d = await loadBriefData(token); } catch { /* keep polling */ }
-      if (d && d.body_built_at && d.body_built_at !== before) {
+      if (d && d.generated_at && d.generated_at !== before) {
         clearInterval(timer);
         statusCb("רוענן ✓", true);
         renderHome();
@@ -305,6 +306,7 @@ async function renderHomeBrief(c) {
         // 21/07: הקופסאות החיות בתוך הבריף החליפו את פס-הצ'יפים (phoe) - מידע פעם אחת.
         renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts, token });
         await prependResume(c, token);                 // "המשך מכאן" - מ-05/09 בתחתית הבית, לא בראש
+        { const mm = renderMachineMetrics(data); if (mm) c.appendChild(mm); }   // 03/10/2026: מדדי-המכונה אחרי "המשך מכאן"
         if (data.date) localStorage.setItem(BRIEF_SEEN_KEY, data.date);   // viewing home clears "new"
         paintCounts(counts);
         return;
@@ -325,7 +327,7 @@ async function renderHomeBrief(c) {
   }
   loginGate(c, async () => {
     c.innerHTML = "<p class='muted pad'>טוען הדגמה…</p>";
-    try { renderBrief(c, await loadSampleData(), { demo: true, onGotoThreads: gotoThreads }); prependResumeDemo(c); }
+    try { renderBrief(c, await loadSampleData(), { demo: true, onGotoThreads: gotoThreads }); prependResumeDemo(c); const sample = await loadSampleData(); const mm = renderMachineMetrics(sample); if (mm) c.appendChild(mm); }
     catch { c.innerHTML = "<p class='err-msg pad'>הדגמה לא זמינה</p>"; }
   });
 }

@@ -17,21 +17,75 @@ function detail(label, node) { const d = document.createElement("details"); d.ap
 function sec(over) { const s = mk("section"); const h = mk("div", "shead"); h.appendChild(mk("span", "over", over)); h.appendChild(mk("span", "line")); s.appendChild(h); return s; }
 function isTime(s) { return /[0-9].*[:\u2013-]/.test(s); }
 
-// minimal block markdown for weekend editions: headings, bullets, paragraphs.
-// Mirrors mdInto() in brief-template.html so both surfaces read the same.
-function mdInto(root, md) {
-  let list = null;
-  String(md).split(/\r?\n/).forEach((line) => {
-    const t = line.trim();
-    if (!t) { list = null; return; }
-    const h = t.match(/^(#{1,4})\s+(.*)$/);
-    if (h) { list = null; root.appendChild(mk(h[1].length <= 2 ? "h2" : "h3", "ed-h", h[2])); return; }
-    if (/^[-*]\s+/.test(t)) {
-      if (!list) { list = mk("ul", "ed-l"); root.appendChild(list); }
-      list.appendChild(mk("li", null, t.replace(/^[-*]\s+/, ""))); return;
-    }
-    list = null; root.appendChild(mk("p", "ed-p", t));
+// 03/10/2026 (שלב 1, חוזה "מרנדר-המהדורה"): הערות HTML, ---, **bold**, טבלאות, גדרות-קוד,
+// קישורים וסדר מעקב-אימוצים. הכל בבנייה ב-DOM, בלי innerHTML. זהה ל-brief-template.html.
+function inlineInto(el, text) {
+  const clean = String(text).replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/`([^`]+)`/g, "$1");
+  clean.split(/\*\*(.+?)\*\*/).forEach((part, i) => {
+    if (!part) return;
+    if (i % 2) el.appendChild(mk("strong", null, part)); else el.appendChild(document.createTextNode(part));
   });
+  return el;
+}
+function mkI(tag, cls, txt) { return inlineInto(mk(tag, cls), txt); }
+function fmtActionDate(on) {
+  const m = String(on == null ? "" : on).match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}` : "";
+}
+function mdInto(root, md) {
+  let src = String(md).replace(/\r\n?/g, "\n");
+  // מעקב-אימוצים: הבלוק שנפתח בסמן, עד ה---  הראשון, עובר לסוף אחרי גוף המהדורה.
+  const marker = "<!-- alma-adoption-footer -->";
+  if (src.trimStart().startsWith(marker)) {
+    const after = src.trimStart().slice(marker.length).replace(/^\n/, "");
+    const ls = after.split("\n");
+    const cut = ls.findIndex((l) => /^-{3,}$/.test(l.trim()));
+    if (cut >= 0) src = ls.slice(cut + 1).join("\n") + "\n\n" + ls.slice(0, cut).join("\n");
+  }
+  src = src.replace(/<!--[\s\S]*?-->/g, "");
+  const lines = src.split("\n");
+  let list = null;
+  const addLi = (txt) => {
+    if (!list) { list = mk("ul", "ed-l"); root.appendChild(list); }
+    list.appendChild(mkI("li", null, txt));
+  };
+  const isSep = (s) => /^\|?[\s:|-]+\|?$/.test(s.trim()) && s.includes("-");
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!t) { list = null; continue; }
+    if (/^-{3,}$/.test(t)) { list = null; continue; }
+    if (t.startsWith("```")) {
+      const isActions = /^```\s*json\s+actions\b/i.test(t);
+      let j = i + 1; const buf = [];
+      while (j < lines.length && !lines[j].trim().startsWith("```")) { buf.push(lines[j]); j++; }
+      i = j; list = null;
+      if (isActions) {
+        try {
+          const arr = JSON.parse(buf.join("\n"));
+          const acts = Array.isArray(arr) ? arr : (arr && Array.isArray(arr.actions) ? arr.actions : []);
+          acts.forEach((a) => {
+            const name = a && (a.item || a.title || a.text);
+            if (!name) return;
+            const dd = fmtActionDate(a.on);
+            addLi(String(name) + (dd ? " · עד " + dd : ""));
+          });
+        } catch { /* כשל-פענוח = הבלוק לא מוצג */ }
+        list = null;
+      }
+      continue;
+    }
+    if (t.startsWith("|")) {
+      if (isSep(lines[i + 1] || "")) { i++; list = null; continue; }   // כותרת-טבלה + |---| נבלעות
+      if (isSep(t)) continue;
+      const cells = t.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length) addLi(cells.join(" · "));
+      continue;
+    }
+    const h = t.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { list = null; root.appendChild(mkI(h[1].length <= 2 ? "h2" : "h3", "ed-h", h[2])); continue; }
+    if (/^[-*]\s+/.test(t)) { addLi(t.replace(/^[-*]\s+/, "")); continue; }
+    list = null; root.appendChild(mkI("p", "ed-p", t));
+  }
 }
 
 // צופה-הגרפים (01/08): דף-הדשבורד השבועי נמשך חי מ-OneDrive באותו צינור Graph
@@ -149,7 +203,11 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   app.classList.add("brief-surface");
 
   // read-stamp: what did he see last, and is the morning edition already read?
-  const builtAt = d.body_built_at || d.generated_at || null;
+  // 03/10/2026 (שלב 1, חוזה §1,§5): הפריסה לפי d.weekend + d.edition בלבד (לא שעון הדפדפן);
+  // החותמת, "מאז שקראת" והקיפול קוראים display_* עם נפילה ל-body_*.
+  // אימות פייבל #6: Pages חדש מול brief-latest.json ישן (בלי weekend) - מהדורה קיימת עדיין מפעילה פריסת סוף-שבוע.
+  const WE = d.weekend === true || (d.weekend === undefined && !!(d.edition && d.edition.md));
+  const builtAt = d.display_built_at || d.body_built_at || d.generated_at || null;
   const prevVisit = readLS(VISIT_KEY, null);
   writeLS(VISIT_KEY, { at: new Date().toISOString() });
   const alreadyRead = !!(prevVisit && builtAt && new Date(prevVisit.at) > new Date(builtAt));
@@ -170,7 +228,8 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
 
   // 01/09 (RESTRUCTURE הכרעה 2): מהדורת-רדיו - הבריף שהוקלט על התחנה (הילה+אווה)
   // ומונח בפיד. מתנגן מכל מקום. בלי token (דמו/מנותק) אין נגן - קישור שמת מוסתר (הכרעה 4).
-  if (token) {
+  // 03/10/2026 (חוזה §4): פס-רדיו רק כש-d.radio === true.
+  if (token && d.radio === true) {
     const radioWrap = mk("div", "radio-strip");
     app.appendChild(radioWrap);
     (async () => {
@@ -207,9 +266,20 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     const dis = readLS(DISMISS_KEY, {});
     const dismissed = dis.date === todayStr() ? (dis.ids || []) : [];
     // 01/09 הכרעה 3: שורת-העצירה (טיוטות ממתינות, SKILL שלב 1) קודמת לכל - עבודה גמורה שמחכה לשילוח.
-    const stops = (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: "🛑 " + (typeof w === "string" ? w : (w.title || JSON.stringify(w))), body: (w && w.body) || "" }));
-    const src = stops.concat(d.urgent && d.urgent.length ? d.urgent
-      : (d.spotlight || []).filter((s) => s.tone === "err").map((s, i) => ({ id: "sp-" + i, title: s.title, body: s.body })));
+    // 03/10/2026 (חוזה, רצועת-הדחוף): טיוטה = "🛑 טיוטה ל{to}: {subject} · {hours} שעות", לא JSON.
+    const draftTitle = (w) => {
+      if (typeof w === "string") return "🛑 " + w;
+      if (w && w.title) return "🛑 " + w.title;
+      const hrs = w && (w.hours != null ? w.hours : w.age_hours);
+      return "🛑 טיוטה" + (w && w.to ? " ל" + w.to : "") + (w && w.subject ? ": " + w.subject : "") + (hrs != null ? " · " + hrs + " שעות" : "");
+    };
+    const stops = WE ? [] : (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: draftTitle(w), body: (w && w.body) || "" }));
+    // פריטי mail_state.urgent עם exceptional מצטרפים לרצועה (גם בחול), עם url.
+    const exc = ((d.mail_state && d.mail_state.urgent) || []).filter((u) => u && u.exceptional)
+      .map((u, i) => ({ id: "ex-" + i, title: "✉️ " + (u.subject || "") + (u.from ? " · " + u.from : ""), body: u.why || "", url: u.url || "" }));
+    // בסוף-שבוע: רק exceptional (בלי טיוטות, בלי err מהזרקור).
+    const src = WE ? exc : stops.concat(d.urgent && d.urgent.length ? d.urgent
+      : (d.spotlight || []).filter((s) => s.tone === "err").map((s, i) => ({ id: "sp-" + i, title: s.title, body: s.body }))).concat(exc);
     const items = src.filter((u) => !dismissed.includes(u.id)).slice(0, 3);
     if (items.length) {
       const strip = mk("div", "urgent-strip");
@@ -288,9 +358,10 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   // The daemon flags body_stale; we also recompute from age as a client-side backup,
   // so the brief can never silently show yesterday's thinking again.
   {
-    const builtAt = d.body_built_at || d.generated_at;
-    let stale = d.body_stale === true;
-    if (!stale && builtAt) {
+    const builtAt = d.display_built_at || d.body_built_at || d.generated_at;
+    const hasDisp = d.display_stale === true || d.display_stale === false;
+    let stale = hasDisp ? d.display_stale === true : d.body_stale === true;
+    if (!stale && builtAt) {   // אימות פייבל #2: רשת-הביטחון הלקוחית רצה תמיד, גם כשיש display_stale
       const ageH = (Date.now() - new Date(builtAt).getTime()) / 3.6e6;
       if (isFinite(ageH) && ageH >= 20) stale = true;
     }
@@ -321,15 +392,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     app.appendChild(wrap);
   }
 
-  // budget banner (19/06): API credit at 80% -> decide on renewal; empty -> body can't self-refresh.
-  if (d.credit_low || d.budget_warn) {
-    const bd = d.budget || {};
-    const b = mk("div", "brief-budget" + (d.credit_low ? " out" : " warn"));
-    b.textContent = d.credit_low
-      ? "⚠ קרדיט ה-API אזל · הגוף לא יתרענן לבד עד שתחדש"
-      : `תקציב ה-API ב-${bd.pct != null ? bd.pct : 80}% ($${bd.spent != null ? bd.spent : "?"} מתוך $${bd.budget != null ? bd.budget : 5}) · החלט על חידוש`;
-    app.appendChild(b);
-  }
+  // 03/10/2026 (חוזה §11): פס תקציב-ה-API (budget_warn/credit_low) הוסר מהתצוגה - נתיב ה-API מושבת, המכונה על Max. השדות נשארים בנתונים.
 
   // today
   if (d.today && d.today.length) {
@@ -371,12 +434,19 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   }
 
   // --- מהדורת הבוקר: אחרי שנקראה היא מתקפלת לתחתית כ"מהדורת היום".
-  const edRoot = alreadyRead ? mk("div") : app;
+  // בסוף-שבוע אין קיפול למהדורה (חוזה §5).
+  const edRoot = alreadyRead && !WE ? mk("div") : app;
 
   // weekend edition (spec 13/07): REPLACES the weekday body, the skeleton stays.
   // 17/07: this surface never knew the field, so every Friday/Saturday it served
   // Thursday's fronts/spotlight/cards and dropped the edition on the floor.
-  const hasEdition = !!(d.edition && d.edition.md);
+  const hasEdition = WE && !!(d.edition && d.edition.md);
+  if (WE && !hasEdition) {
+    // סוף-שבוע בלי מהדורה (חוזה): כרטיס אחד במקום המהדורה.
+    const s = sec("המהדורה");
+    const c = mk("div", "card"); c.appendChild(mk("p", "muted", "המהדורה טרם נבנתה · נבנית ב-07:10"));
+    s.appendChild(c); edRoot.appendChild(s);
+  }
   if (hasEdition) {
     let s = sec(d.edition.title || "מהדורת סוף-שבוע");
     const c = mk("div", "card");
@@ -399,12 +469,13 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
 
 
   // spotlight (מדלג על מה שכבר קודם לרצועת-החירום - מידע לא מופיע פעמיים)
-  if (!hasEdition && d.spotlight && d.spotlight.length) {
+  // 03/10/2026 (חוזה §פריסה): "זרקור · התובנה של היום", בטון acc; לא מוצג בסוף-שבוע.
+  if (!WE && d.spotlight && d.spotlight.length) {
     const rest = d.spotlight.filter((sp, i) => !(d._promoted && d._promoted.has(i)));
     if (rest.length) {
-      let s = sec("דחוף · זרקור");
+      let s = sec("זרקור · התובנה של היום");
       rest.forEach((sp) => {
-        const c = mk("div", "card"); c.style.borderInlineStart = "3px solid var(--" + sp.tone + ")";
+        const c = mk("div", "card"); c.style.borderInlineStart = "3px solid var(--acc)";
         c.appendChild(mk("h2", null, sp.title)); c.appendChild(mk("div", "muted", sp.body)); s.appendChild(c);
       });
       edRoot.appendChild(s);
@@ -412,7 +483,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   }
 
   // drill-down cards
-  if (!hasEdition && d.cards && d.cards.length) {
+  if (!WE && d.cards && d.cards.length) {
     let s = sec("פירוט · drill-down");
     d.cards.forEach((o) => {
       const c = mk("div", "card"); c.appendChild(mk("h2", null, o.title)); c.appendChild(mk("div", "phead", o.head));
@@ -429,7 +500,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
 
   // fronts = שאלות אליך. 05/09/2026 (אסף): לא בראש הבריף, לכל היותר 3, בקופסה משלהן מתחת לעבודה.
   // הראש שמור לרצועת-החירום (0-3 עוצרי-יום) בלבד.
-  if (!hasEdition && d.fronts && d.fronts.length) {
+  if (!WE && d.fronts && d.fronts.length) {   // אימות פייבל #1: בסוף-שבוע לא מוצג גם בלי מהדורה (ש1)
     let s = sec("שאלות אליך · עד 3");
     const fc = mk("div", "card");
     d.fronts.slice(0, 3).forEach((f) => {
@@ -446,44 +517,90 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     edRoot.appendChild(s);
   }
 
+  // 03/10/2026 (חוזה §8): כדאי/לא-כדאי. בסוף-שבוע מ-weekend_dodont (מוצג לפני המייל), בחול מ-doList/dontList.
+  const addDoDont = () => {
+    const src = WE ? (d.weekend_dodont || {}) : d;
+    if (!(src.doList || src.dontList)) return;
+    if (WE && !((src.doList || []).length || (src.dontList || []).length)) return;
+    let s = sec(WE ? "מה כדאי · מה לא כדאי בסוף-השבוע" : "מה כדאי · מה לא כדאי היום");
+    const dd = mk("div", "dd");
+    const doCol = mk("div", "col do"); doCol.appendChild(mk("h3", null, "כדאי"));
+    (src.doList || []).forEach((x) => { const li = mk("li"); li.appendChild(mk("span", "mk", "↑")); li.appendChild(mk("span", null, x)); doCol.appendChild(li); });
+    const dontCol = mk("div", "col dont"); dontCol.appendChild(mk("h3", null, "לא כדאי"));
+    (src.dontList || []).forEach((x) => { const li = mk("li"); li.appendChild(mk("span", "mk", "×")); li.appendChild(mk("span", null, x)); dontCol.appendChild(li); });
+    dd.appendChild(doCol); dd.appendChild(dontCol); s.appendChild(dd); edRoot.appendChild(s);
+  };
+  if (WE) addDoDont();
+
   // mail - דלת, לא טקסט (משוב אסף 21/07): לחיצה פותחת את התיבה עצמה.
-  if (d.mail) {
+  // 03/10/2026 (חוזה, מקטע מייל): כש-mail_state קיים - כותרת, urgent ו-awaiting בלי לחיצה, וכפתור Outlook בתחתית;
+  // בלעדיו - שורת mail הקיימת.
+  const openOutlook = () => window.open("https://outlook.office.com/mail/", "_blank", "noopener");
+  if (d.mail_state) {
+    const ms = d.mail_state;
+    const urgent = ms.urgent || [], awaiting = ms.awaiting || [];
+    let s = sec("מייל");
+    const c = mk("div", "card mail-card");
+    c.appendChild(mk("div", "phead", (ms.total_since_yesterday != null ? ms.total_since_yesterday : 0) + " נכנסו מאתמול · " + urgent.length + " דורשים פעולה"));
+    if (urgent.length) {
+      const ul = mk("ul", "mail-list");
+      urgent.forEach((u) => {
+        const li = mk("li");
+        li.appendChild(mk("strong", null, u.from || ""));
+        li.appendChild(document.createTextNode(" · "));
+        if (u.url) { const a = mk("a", null, u.subject || ""); a.href = u.url; a.target = "_blank"; a.rel = "noopener"; li.appendChild(a); }
+        else li.appendChild(document.createTextNode(u.subject || ""));
+        if (u.why) li.appendChild(mk("span", "muted", " · " + u.why));
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+    }
+    if (awaiting.length) {
+      c.appendChild(mk("div", "mail-sub", "ממתינים לתשובה"));
+      const ul = mk("ul", "mail-list");
+      awaiting.forEach((w) => {
+        const li = mk("li");
+        const rd = w.returned && w.reply ? String(w.reply).match(/(\d{4})-(\d{2})-(\d{2})/) : null;
+        const state = w.returned ? "חזר" + (rd ? " " + rd[3] + "/" + rd[2] : "") : "ממתין " + (w.days_waiting != null ? w.days_waiting : "?") + " ימים";
+        li.appendChild(mk("strong", null, w.contact || ""));
+        li.appendChild(document.createTextNode(" · " + (w.subject || "") + " · "));
+        li.appendChild(mk("span", w.returned ? "mail-back" : "muted", state));
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+    }
+    const ob = mk("button", "btn-ghost mail-open", "פתח ב-Outlook ←"); ob.type = "button";
+    ob.addEventListener("click", openOutlook);
+    c.appendChild(ob);
+    s.appendChild(c); edRoot.appendChild(s);
+  } else if (d.mail) {
     let s = sec("מייל");
     const c = mk("button", "card cta-card"); c.type = "button";
     c.appendChild(mk("span", "cta-txt", d.mail));
     c.appendChild(mk("span", "cta-arrow", "←"));
-    c.addEventListener("click", () => window.open("https://outlook.office.com/mail/", "_blank", "noopener"));
+    c.addEventListener("click", openOutlook);
     s.appendChild(c); edRoot.appendChild(s);
   }
 
-  // services
-  if (d.services && d.services.length) {
-    // 01/09 צ'אנק ג: וולטים ו-gated - שני השדות שהרנדרר לא הציג (פער-הפיד נסגר כאן)
-    if ((d.vaults && d.vaults.length) || (d.gated && d.gated.length)) {
-      let s = sec("וולטים");
-      const c = mk("div", "card");
-      if (d.vaults && d.vaults.length) {
-        const names = d.vaults.map((v) => Array.isArray(v) ? (v[1] || v[0]) : String(v));
-        c.appendChild(mk("p", "muted", names.join(" · ")));
-      }
-      (d.gated || []).forEach((g) => c.appendChild(mk("p", "muted", "🔒 " + (typeof g === "string" ? g : (g.title || JSON.stringify(g))))));
-      s.appendChild(c); app.appendChild(s);
-    }
-    let s = sec("שירותים"); const c = mk("div", "card"); const box = mk("div", "muted");
-    d.services.forEach((x, i) => { if (i) box.appendChild(document.createElement("br")); box.appendChild(document.createTextNode(x)); });
-    c.appendChild(box); s.appendChild(c); edRoot.appendChild(s);
+  // 03/10/2026 (חוזה §10): וולטים - רק שורות vault_alerts (עד 3); `vaults` הקיים לא מוצג יותר, ו-gated עבר למדדי-המכונה.
+  if (d.vault_alerts && d.vault_alerts.length) {
+    let s = sec("וולטים");
+    const c = mk("div", "card");
+    d.vault_alerts.slice(0, 3).forEach((v) => c.appendChild(mk("p", "muted", String(v))));
+    s.appendChild(c); edRoot.appendChild(s);
   }
 
-  // do / dont (weekday body; hidden on edition days)
-  if (!hasEdition && (d.doList || d.dontList)) {
-    let s = sec("מה כדאי · מה לא כדאי היום");
-    const dd = mk("div", "dd");
-    const doCol = mk("div", "col do"); doCol.appendChild(mk("h3", null, "כדאי"));
-    (d.doList || []).forEach((x) => { const li = mk("li"); li.appendChild(mk("span", "mk", "↑")); li.appendChild(mk("span", null, x)); doCol.appendChild(li); });
-    const dontCol = mk("div", "col dont"); dontCol.appendChild(mk("h3", null, "לא כדאי"));
-    (d.dontList || []).forEach((x) => { const li = mk("li"); li.appendChild(mk("span", "mk", "×")); li.appendChild(mk("span", null, x)); dontCol.appendChild(li); });
-    dd.appendChild(doCol); dd.appendChild(dontCol); s.appendChild(dd); edRoot.appendChild(s);
+  // 03/10/2026 (חוזה §11): שירות שנפל - שורה בבית רק כשהרשימה לא ריקה. services המלא עבר למדדי-המכונה.
+  if (d.services_down && d.services_down.length) {
+    let s = sec("שירותים");
+    const c = mk("div", "card");
+    const when = d.generated_at ? new Date(d.generated_at) : null;
+    const hhmm = when && isFinite(when) ? String(when.getHours()).padStart(2, "0") + ":" + String(when.getMinutes()).padStart(2, "0") : "";
+    d.services_down.forEach((n) => c.appendChild(mk("p", "err-msg", "⚠ " + n + " לא עונה" + (hhmm ? " · נבדק " + hhmm : ""))));
+    s.appendChild(c); edRoot.appendChild(s);
   }
+
+  if (!WE) addDoDont();
 
   // the fold itself: on a revisit, the whole morning edition sits collapsed at the bottom.
   if (alreadyRead && edRoot !== app && edRoot.childNodes.length) {
@@ -511,6 +628,12 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   // שום מידע לא נמחק - רק הסדר. בדסקטופ הכל נשאר פרוש.
   if (!window.matchMedia("(min-width: 900px)").matches) {
     const KEEP_OPEN = new Set(["היום", "קרוב · ימים הבאים"]);
+    if (d.mail_state) KEEP_OPEN.add("מייל");   // 03/10/2026: "מראה מה חזר ומה דחוף בלי לחיצה"
+    // 03/10/2026 (ש1, אימות-עין): בסוף-שבוע המהדורה היא הגוף - פרושה, לא מאחורי לחיצה; וגם כדאי/לא-כדאי הקצר.
+    if (d.weekend === true) {
+      KEEP_OPEN.add(d.edition ? (d.edition.title || "מהדורת סוף-שבוע") : "המהדורה");
+      KEEP_OPEN.add("מה כדאי · מה לא כדאי בסוף-השבוע");
+    }
     app.querySelectorAll("section").forEach((secEl) => {
       const over = secEl.querySelector(".shead .over");
       if (!over || KEEP_OPEN.has(over.textContent)) return;
@@ -526,4 +649,22 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     });
   }
   app.appendChild(mk("p", "disc", "פחות, אבל טוב יותר"));
+}
+
+// 03/10/2026 (חוזה §3,§11): מקטע מקופל "מדדי-המכונה" - machine_pulse, אחריו services המלא (ו-gated).
+// נקרא מ-app.js אחרי "המשך מכאן" כדי שיהיה התחתון ביותר בבית.
+export function renderMachineMetrics(d) {
+  const wrap = mk("div", "mm-body");
+  if (d.machine_pulse && d.machine_pulse.length) { const pl = mk("div", "pulse"); d.machine_pulse.forEach((x) => pl.appendChild(mk("span", null, x))); wrap.appendChild(pl); }
+  if (d.services && d.services.length) {
+    wrap.appendChild(mk("div", "mail-sub", "שירותים"));
+    const box = mk("div", "muted");
+    d.services.forEach((x, i) => { if (i) box.appendChild(document.createElement("br")); box.appendChild(document.createTextNode(x)); });
+    wrap.appendChild(box);
+  }
+  if (d.gated && d.gated.length) d.gated.forEach((g) => wrap.appendChild(mk("p", "muted", "🔒 " + (typeof g === "string" ? g : (g.title || "")))));
+  if (!wrap.childNodes.length) return null;
+  const det = detail("מדדי-המכונה", wrap);
+  det.className = "machine-metrics";
+  return det;
 }
