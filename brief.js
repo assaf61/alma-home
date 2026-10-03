@@ -648,7 +648,7 @@ function nextStepLine(o, ctx) {
   wrap.appendChild(top);
   const acts = mk("div", "nx-acts");
   if (o.trigger) {
-    const hb = handleButton({ kind: "session", target: o.trigger, label: "העתק טריגר" }, { id: "card" }, ctx, "btn-ghost nx-handle");
+    const hb = handleButton({ kind: "session", target: o.trigger, label: "העתק משפט-המשך" }, { id: "card" }, ctx, "btn-ghost nx-handle");
     if (hb) acts.appendChild(hb);
   }
   const rb = mk("button", "btn-ghost nx-reply", "💬 תגובה"); rb.type = "button";

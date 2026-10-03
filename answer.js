@@ -70,7 +70,7 @@ function sourceRow(counts) {
 // ---------- הידית (חוזה §5) ----------
 // url: https בלבד, קישור אמיתי (לא window.open אחרי await: חוסם-החלונות בנייד בולע אותו, ראה 28/07 ב-brief.js).
 // session: העתקה ללוח. hands: בקשת-מוכנות ל-inbox, הרצה רק בפס. deep: Graph ← webUrl ← טאב חדש.
-const HANDLE_DEFAULT = { url: "פתח", session: "העתק טריגר", hands: "הכן למחשב", deep: "פתח" };
+const HANDLE_DEFAULT = { url: "פתח", session: "העתק משפט-המשך", hands: "הכן למחשב", deep: "פתח" };
 
 export function validHandle(h) {
   if (!h || typeof h !== "object" || typeof h.target !== "string" || !h.target) return null;
