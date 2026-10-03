@@ -1,0 +1,274 @@
+{
+  "updatedAt": "2026-10-03T07:40:00.000Z",
+  "guard": {
+    "red": 0,
+    "amber": 1,
+    "green": 6,
+    "scannedAt": "2026-10-03T07:30:00.000Z"
+  },
+  "awaiting": [
+    {
+      "id": "oq-fcf955e35a88",
+      "origin": "question",
+      "title": "❓ לאשר את הצעת המחיר של הספק לפני שהיא פוקעת מחר?",
+      "detail": "ההצעה בתוקף עד מחר בצהריים.\nהסכום נמוך ב-6% מהצעה קודמת, בלי שינוי בהיקף.\nהחלופה: בקשת הארכה של שבוע.",
+      "recommendation": "",
+      "tier": 1,
+      "at": "2026-10-01",
+      "src": "open-questions",
+      "ageDays": 2,
+      "ageTier": "green",
+      "question": "לאשר את הצעת המחיר של הספק לפני שהיא פוקעת מחר?",
+      "background": "ההצעה בתוקף עד מחר בצהריים.\nהסכום נמוך ב-6% מהצעה קודמת, בלי שינוי בהיקף.\nהחלופה: בקשת הארכה של שבוע.",
+      "options": [
+        {
+          "key": "א",
+          "label": "לאשר",
+          "recommended": true
+        },
+        {
+          "key": "ב",
+          "label": "לבקש הארכה של שבוע",
+          "recommended": false
+        },
+        {
+          "key": "ג",
+          "label": "לדחות",
+          "recommended": false
+        }
+      ],
+      "urgency": "stop",
+      "exceptional": false,
+      "topic": "אגריפס",
+      "handle": {
+        "kind": "url",
+        "target": "https://outlook.office.com/mail/",
+        "label": "פתח את המייל"
+      }
+    },
+    {
+      "id": "oq-acccafd362a0",
+      "origin": "question",
+      "title": "❓ לאשר עכשיו את התשלום החריג שהגיע בסוף-השבוע?",
+      "detail": "מייל בחשיבות גבוהה מגורם שאתה מחכה לו.\nהמועד האחרון: הלילה.",
+      "recommendation": "",
+      "tier": 1,
+      "at": "2026-10-03",
+      "src": "open-questions",
+      "ageDays": 0,
+      "ageTier": "green",
+      "question": "לאשר עכשיו את התשלום החריג שהגיע בסוף-השבוע?",
+      "background": "מייל בחשיבות גבוהה מגורם שאתה מחכה לו.\nהמועד האחרון: הלילה.",
+      "options": [
+        {
+          "key": "א",
+          "label": "לאשר",
+          "recommended": true
+        },
+        {
+          "key": "ב",
+          "label": "לעכב עד ראשון",
+          "recommended": false
+        }
+      ],
+      "urgency": "stop",
+      "exceptional": true,
+      "topic": "בית-עלמא",
+      "handle": null
+    },
+    {
+      "id": "act-bc048b967d3b",
+      "origin": "action",
+      "title": "⏰ לשלוח את תשובת הקבלן ליועץ הבטיחות",
+      "detail": "הפעולה חיכתה למועד not-before שהגיע היום.\nהמסמך מוכן בתיקיית הפרויקט.",
+      "recommendation": "",
+      "tier": 3,
+      "at": "2026-09-28",
+      "src": "actions",
+      "ageDays": 5,
+      "ageTier": "amber",
+      "question": "לשלוח את תשובת הקבלן ליועץ הבטיחות",
+      "background": "הפעולה חיכתה למועד not-before שהגיע היום.\nהמסמך מוכן בתיקיית הפרויקט.",
+      "options": [
+        {
+          "key": "א",
+          "label": "בוצע",
+          "recommended": true
+        },
+        {
+          "key": "ב",
+          "label": "לא רלוונטי",
+          "recommended": false
+        }
+      ],
+      "urgency": "today",
+      "exceptional": false,
+      "topic": "מסמך-המסירה",
+      "handle": {
+        "kind": "session",
+        "target": "המשך מסמך המסירה",
+        "label": "העתק טריגר"
+      }
+    },
+    {
+      "id": "brief-9bf9cedd1957",
+      "origin": "brief",
+      "title": "📋 הנוסח של הפנייה לעירייה מוכן לשליחה?",
+      "detail": "החזית נפתחה בבריף של הבוקר.\nנשאר רק אישור סופי של הנוסח.",
+      "recommendation": "",
+      "tier": 3,
+      "at": "2026-10-03",
+      "src": "brief-latest",
+      "ageDays": 0,
+      "ageTier": "green",
+      "question": "הנוסח של הפנייה לעירייה מוכן לשליחה?",
+      "background": "החזית נפתחה בבריף של הבוקר.\nנשאר רק אישור סופי של הנוסח.",
+      "options": [
+        {
+          "key": "א",
+          "label": "מטופל",
+          "recommended": true
+        },
+        {
+          "key": "ב",
+          "label": "לא רלוונטי",
+          "recommended": false
+        }
+      ],
+      "urgency": "today",
+      "exceptional": false,
+      "topic": "בריף",
+      "handle": {
+        "kind": "deep",
+        "target": "OD - Alma/IT/AI/AI - מקומי/guard-hub/scream-list.md",
+        "label": "הרשימה"
+      }
+    },
+    {
+      "id": "pend-92be0482b341",
+      "origin": "pending",
+      "title": "🧺 לאפשר למכונה לפתוח את הגדרות התצוגה כדי להתאים את המסך השני?",
+      "detail": "הפעולה דורשת לחיצה אחת שלך במחשב.",
+      "recommendation": "",
+      "tier": 3,
+      "at": "2026-09-30",
+      "src": "pending",
+      "ageDays": 3,
+      "ageTier": "green",
+      "question": "לאפשר למכונה לפתוח את הגדרות התצוגה כדי להתאים את המסך השני?",
+      "background": "הפעולה דורשת לחיצה אחת שלך במחשב.",
+      "options": [
+        {
+          "key": "א",
+          "label": "כן",
+          "recommended": false
+        },
+        {
+          "key": "ב",
+          "label": "לא",
+          "recommended": false
+        }
+      ],
+      "urgency": "today",
+      "exceptional": false,
+      "topic": "החלטות",
+      "handle": {
+        "kind": "hands",
+        "target": "display-settings",
+        "label": "הגדרות תצוגה"
+      }
+    },
+    {
+      "id": "loomq-d6bc7c8cadda",
+      "origin": "loom",
+      "title": "🧵 לטפל בחוט על ארכיטקטורת הוולטים או לארכב אותו?",
+      "detail": "החוט ממתין 9 ימים בלי מגע.",
+      "recommendation": "",
+      "tier": 3,
+      "at": "2026-09-24",
+      "src": "loom",
+      "ageDays": 9,
+      "ageTier": "amber",
+      "question": "לטפל בחוט על ארכיטקטורת הוולטים או לארכב אותו?",
+      "background": "החוט ממתין 9 ימים בלי מגע.",
+      "options": [
+        {
+          "key": "א",
+          "label": "להשאיר ולטפל",
+          "recommended": true
+        },
+        {
+          "key": "ב",
+          "label": "לארכב",
+          "recommended": false
+        }
+      ],
+      "urgency": "week",
+      "exceptional": false,
+      "topic": "חוטים",
+      "handle": null
+    },
+    {
+      "id": "scream-2026-10-04",
+      "origin": "scream",
+      "title": "📣 3 פריטים שלך צועקים 14+ ימים · עולים בישיבת ראשון",
+      "detail": "מעקב רכש ספק\nתשובה לרשות\nעדכון תוכנית עבודה",
+      "recommendation": "",
+      "tier": 3,
+      "at": "2026-09-12",
+      "src": "open-items",
+      "ageDays": 21,
+      "ageTier": "red",
+      "question": "3 פריטים שלך צועקים 14+ ימים · עולים בישיבת ראשון",
+      "background": "מעקב רכש ספק\nתשובה לרשות\nעדכון תוכנית עבודה",
+      "options": [
+        {
+          "key": "א",
+          "label": "לישיבת ראשון",
+          "recommended": true
+        }
+      ],
+      "urgency": "week",
+      "exceptional": false,
+      "topic": "השומר",
+      "handle": {
+        "kind": "deep",
+        "target": "OD - Alma/IT/AI/AI - מקומי/guard-hub/scream-list.md",
+        "label": "הרשימה"
+      }
+    },
+    {
+      "id": "act-0eb65ba709ac",
+      "origin": "action",
+      "title": "⏰ להחליט אם לצרף את המדריך לשלב 3",
+      "detail": "",
+      "recommendation": "",
+      "tier": 3,
+      "at": "2026-09-21",
+      "src": "actions",
+      "ageDays": 12,
+      "ageTier": "amber",
+      "question": "להחליט אם לצרף את המדריך לשלב 3",
+      "background": "",
+      "options": [
+        {
+          "key": "א",
+          "label": "בוצע",
+          "recommended": true
+        },
+        {
+          "key": "ב",
+          "label": "לא רלוונטי",
+          "recommended": false
+        }
+      ],
+      "urgency": "week",
+      "exceptional": false,
+      "topic": "בית-עלמא",
+      "handle": null
+    }
+  ],
+  "receipts": [],
+  "locked": [],
+  "handsReady": []
+}

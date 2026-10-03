@@ -79,6 +79,16 @@ export async function getDrivePathText(token, fullPath) {
   return normEol(await res.text());
 }
 
+// שלב 2 (חוזה §5, ידית deep): הכתובת הניתנת-לפתיחה של פריט לפי נתיבו. null כשאין.
+export async function getDriveWebUrl(token, fullPath) {
+  const url = `${GRAPH}/me/drive/root:/${encPath(fullPath)}?$select=webUrl`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  await checkResponse(res);
+  const j = await res.json();
+  return (j && j.webUrl) || null;
+}
+
 // 01/09 (מהדורת-רדיו): שליפה בינארית מאותו נתיב-Graph - ל-mp3 של הבריף.
 export async function getDrivePathBlob(token, fullPath) {
   const url = `${GRAPH}/me/drive/root:/${encPath(fullPath)}:/content`;

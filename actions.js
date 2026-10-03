@@ -117,9 +117,8 @@ function render(container, head, items, save, rerender) {
   container.innerHTML = "";
   const h = mk("div", "thr-head");
   h.appendChild(mk("span", "over", "נתיב הפעולות"));
-  const youN = items.filter((i) => laneOf(i) === "you").length;
   const mN = items.filter((i) => laneOf(i) === "machine").length;
-  h.appendChild(mk("span", "thr-count", `${youN} ממתין לך · ${mN} במכונה`));
+  h.appendChild(mk("span", "thr-count", `${mN} במכונה`));   // שלב 2 (§6.7): "ממתין לך" יורד מכאן, השאלות ב"שאלות אליך"
   container.appendChild(h);
 
   // + add
@@ -127,7 +126,7 @@ function render(container, head, items, save, rerender) {
   addBtn.addEventListener("click", () => openAdd(container, items, save, rerender));
   container.appendChild(addBtn);
 
-  const lanes = [["you", "ממתין לך"], ["machine", "המכונה עושה"], ["done", "נעשה"]];
+  const lanes = [["machine", "המכונה עושה"], ["done", "נעשה"]];   // שלב 2 (§6.7): מסלול "ממתין לך" ירד (waitingRow נשאר בקובץ, לא בשימוש)
   lanes.forEach(([key, label]) => {
     const inLane = items.filter((i) => laneOf(i) === key);
     if (!inLane.length) return;
@@ -152,7 +151,7 @@ function render(container, head, items, save, rerender) {
   });
 
   if (!items.length) container.appendChild(mk("div", "card empty", "אין פעולות פתוחות. ✓"));
-  container.appendChild(mk("p", "hint", "המכונה מבצעת לבד את הבטוחות (מחקר/web/פנימי) וכותבת תוצאה כאן. מה שממתין לך נענה בדלפק (\"מה השאלה?\"); עבודת-המכונה ומה שנעשה ניתנים לעריכה כאן."));
+  container.appendChild(mk("p", "hint", "המכונה מבצעת לבד את הבטוחות (מחקר/web/פנימי) וכותבת תוצאה כאן. מה שממתין לך נענה ב'שאלות אליך'; עבודת-המכונה ומה שנעשה ניתנים לעריכה כאן."));
 }
 
 // שורת "ממתין לך": תצוגה בלבד. המענה קורה בדלפק, ולא בשני מקומות שמתחרים.

@@ -7,7 +7,8 @@
 //   - take data live (no embedded encrypted payload / forge)
 import { CONFIG } from "./config.js";
 import { getDrivePathText, getDrivePathBlob } from "./graph.js";
-import { ENGINE_PIPE } from "./engine.js";
+import { handleButton, validHandle, renderHomeQuestions } from "./answer.js";
+import { submitAnswer, cardId } from "./counter.js";
 
 const LOGO = "./alma-enso.jpg";
 
@@ -194,7 +195,7 @@ function boxCard(label, n, base, onGo, freeText) {
   return b;
 }
 
-export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null, token = null } = {}) {
+export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null, token = null, qs = null } = {}) {
   container.innerHTML = "";
   const app = container;
   // 31/07 (מסך רחב, עוגן-מחלקה בלבד): שום כלל CSS לא נוגע ב-.brief-surface מתחת
@@ -273,14 +274,17 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       const hrs = w && (w.hours != null ? w.hours : w.age_hours);
       return "🛑 טיוטה" + (w && w.to ? " ל" + w.to : "") + (w && w.subject ? ": " + w.subject : "") + (hrs != null ? " · " + hrs + " שעות" : "");
     };
-    const stops = WE ? [] : (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: draftTitle(w), body: (w && w.body) || "" }));
+    const stops = WE ? [] : (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: draftTitle(w), body: (w && w.body) || "", handle: w && w.handle, url: w && w.url }));
     // פריטי mail_state.urgent עם exceptional מצטרפים לרצועה (גם בחול), עם url.
     const exc = ((d.mail_state && d.mail_state.urgent) || []).filter((u) => u && u.exceptional)
       .map((u, i) => ({ id: "ex-" + i, title: "✉️ " + (u.subject || "") + (u.from ? " · " + u.from : ""), body: u.why || "", url: u.url || "" }));
     // בסוף-שבוע: רק exceptional (בלי טיוטות, בלי err מהזרקור).
     const src = WE ? exc : stops.concat(d.urgent && d.urgent.length ? d.urgent
-      : (d.spotlight || []).filter((s) => s.tone === "err").map((s, i) => ({ id: "sp-" + i, title: s.title, body: s.body }))).concat(exc);
-    const items = src.filter((u) => !dismissed.includes(u.id)).slice(0, 3);
+      : (d.spotlight || []).filter((s) => s.tone === "err").map((s, i) => ({ id: "sp-" + i, title: s.title, body: s.body, handle: s.handle, url: s.url }))).concat(exc);
+    // שלב 2 (חוזה §6.4): "טפל בזה" = הידית. פריט בלי ידית תקפה לא נכנס לרצועה
+    // (spotlight err בלי ידית נשאר בזרקור כטקסט). ידית = u.handle, או u.url כידית url.
+    const handleOf = (u) => validHandle(u.handle) || (u.url ? validHandle({ kind: "url", target: u.url, label: "טפל בזה" }) : null);
+    const items = src.filter((u) => !dismissed.includes(u.id) && handleOf(u)).slice(0, 3);
     if (items.length) {
       const strip = mk("div", "urgent-strip");
       // משוב אסף 21/07 בוקר: לחיצה על הקובייה פותחת אותה, ובפנים דלת "טפל בזה"
@@ -291,25 +295,11 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
         const det = mk("div", "urgent-det"); det.hidden = true;
         if (u.body) det.appendChild(mk("p", "muted", u.body));
         const actRow = mk("div", "ub-actions");
-        // 28/07 (תלונת אסף "לוחץ על מחבר ומגיע לדף מת, בלי אפילו שגיאה"): הכפתור
-        // קרא ל-window.open אחרי import ו-await. דפדפני נייד חוסמים בשקט פתיחת חלון
-        // שאינה בתוך הלחיצה עצמה, ולכן שום דבר לא קרה ושום שגיאה לא הוצגה.
-        // עכשיו זה קישור אמיתי: ניווט טבעי שלא נחסם. יעד ברירת-המחדל הוא חדר-המכונות
-        // שבתוך האפליקציה (#engine), שנטען מהענן ולכן תמיד נראה מהטלפון.
-        const treat = mk("a", "btn-primary ub-treat", "טפל בזה ←");
-        treat.href = u.url || "#engine";
-        if (u.url) { treat.target = "_blank"; treat.rel = "noopener"; }
-        treat.style.display = "inline-block"; treat.style.textDecoration = "none";
-        treat.addEventListener("click", (e) => e.stopPropagation());
+        // 28/07 (תלונת אסף "לוחץ על מחבר ומגיע לדף מת, בלי אפילו שגיאה"): window.open אחרי await נחסם בשקט
+        // בנייד. שלב 2: הכפתור הוא הידית (handleButton) - url כקישור אמיתי, השאר פעולות בתוך הלחיצה.
+        const hnd = handleOf(u);
+        const treat = handleButton({ ...hnd, label: hnd.kind === "url" ? "טפל בזה" : hnd.label }, { id: u.id }, { token, demo }, "btn-primary ub-treat");
         actRow.appendChild(treat);
-        if (!u.url) {
-          const room = mk("a", "btn-ghost ub-room", "חדר המכונות המלא ←");
-          room.href = ENGINE_PIPE + "/hub"; room.target = "_blank"; room.rel = "noopener";
-          room.title = "דרך הצינור הפרטי · דורש Tailscale מחובר";
-          room.style.display = "inline-block"; room.style.textDecoration = "none";
-          room.addEventListener("click", (e) => e.stopPropagation());
-          actRow.appendChild(room);
-        }
         const demote = mk("button", "btn-ghost ub-demote", "לא עוצר-יום · הורד"); demote.type = "button";
         demote.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -428,8 +418,10 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     s.classList.add("sec-boxes"); // עוגן-מחלקה בלבד - ראה app.css, אפס כלל מתחת ל-900px
     const base = lv.threads != null ? dayBase(lv) : {};
     if (tN != null) s.appendChild(boxCard("חוטים ממתינים למיון", tN, base.threads, onGotoThreads, "הנול נקי · אתה משוחרר"));
-    if (lv.questions != null) s.appendChild(boxCard("שאלות פתוחות", lv.questions, base.questions, onGotoThreads, "אין שאלות פתוחות · הכול נסגר"));
-    if (lv.actions != null) s.appendChild(boxCard("ממתינות לך", lv.actions, base.actions, onGotoThreads, "שום דבר לא ממתין לך"));
+    // שלב 2 (חוזה §6.6): קופסת-השאלות (stop+today) וקופסת-הפעולות (origin action) מובילות ל"שאלות אליך".
+    const goAnswer = () => { location.hash = "#answer"; };
+    if (lv.questions != null) s.appendChild(boxCard("שאלות פתוחות", lv.questions, base.questions, goAnswer, "אין שאלות פתוחות · הכול נסגר"));
+    if (lv.actions != null) s.appendChild(boxCard("ממתינות לך", lv.actions, base.actions, goAnswer, "שום דבר לא ממתין לך"));
     if (s.childNodes.length > 1) app.appendChild(s);
   }
 
@@ -490,7 +482,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       if (o.facts && o.facts.length) c.appendChild(listOf(o.facts));
       if (o.numbers && o.numbers.length) c.appendChild(detail("מספרים", listOf(o.numbers)));
       if (o.sources && o.sources.length) c.appendChild(detail("מקורות", listOf(o.sources)));
-      if (o.next) c.appendChild(detail("הצעד הבא", mk("div", "dtxt", o.next)));
+      if (o.next) c.appendChild(nextStepLine(o, { token, demo }));   // שלב 2 (§6.5): גלוי, לא בתוך details
       if (o.related) c.appendChild(detail("קשור", mk("div", "dtxt", o.related)));
       if (o.trigger) { const t = mk("div", "trig-line"); t.appendChild(mk("span", "tag trig", o.trigger)); c.appendChild(t); }
       s.appendChild(c);
@@ -498,23 +490,12 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     edRoot.appendChild(s);
   }
 
-  // fronts = שאלות אליך. 05/09/2026 (אסף): לא בראש הבריף, לכל היותר 3, בקופסה משלהן מתחת לעבודה.
-  // הראש שמור לרצועת-החירום (0-3 עוצרי-יום) בלבד.
-  if (!WE && d.fronts && d.fronts.length) {   // אימות פייבל #1: בסוף-שבוע לא מוצג גם בלי מהדורה (ש1)
-    let s = sec("שאלות אליך · עד 3");
-    const fc = mk("div", "card");
-    d.fronts.slice(0, 3).forEach((f) => {
-      const nrow = mk("div", "num"); nrow.appendChild(mk("div", "n", String(f.n)));
-      const b = mk("div", "b"); const h2 = mk("h2");
-      h2.appendChild(document.createTextNode(f.title + " "));
-      if (f.asap) h2.appendChild(mk("span", "tag asap", "ASAP"));
-      b.appendChild(h2); b.appendChild(mk("div", "muted", f.body));
-      if (f.trigger) { const tl = mk("div", "trig-line"); tl.appendChild(mk("span", "tag trig", f.trigger)); b.appendChild(tl); }
-      nrow.appendChild(b); fc.appendChild(nrow);
-    });
-    s.appendChild(fc);
-    if (d.frontsNote) s.appendChild(mk("p", "hint", d.frontsNote));
-    edRoot.appendChild(s);
+  // שאלות אליך (שלב 2, חוזה §6.3): במקום רינדור fronts. עד 3 מ-stop+today, אותו רכיב-כרטיס כמו בעמוד #answer.
+  // 05/09/2026 (אסף): לא בראש הבריף, בקופסה משלה מתחת לעבודה; הראש שמור לרצועת-החירום. fronts בנתונים לא נגעים.
+  if (!WE) {
+    const hq = renderHomeQuestions(qs, { token, demo, weekend: false });
+    // ישיר ל-app ולא ל-edRoot: אלו מצב-חי ולא תוכן-מהדורה, ולכן לא נקברים בקיפול "מהדורת היום · כבר קראת".
+    if (hq) app.appendChild(hq);
   }
 
   // 03/10/2026 (חוזה §8): כדאי/לא-כדאי. בסוף-שבוע מ-weekend_dodont (מוצג לפני המייל), בחול מ-doList/dontList.
@@ -627,7 +608,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   // 01/09 הכרעה 3 (רזה-קודם): במסך צר, כל סקשן אחרי היום/קרוב מתקפל למרחיב.
   // שום מידע לא נמחק - רק הסדר. בדסקטופ הכל נשאר פרוש.
   if (!window.matchMedia("(min-width: 900px)").matches) {
-    const KEEP_OPEN = new Set(["היום", "קרוב · ימים הבאים"]);
+    const KEEP_OPEN = new Set(["היום", "קרוב · ימים הבאים", "שאלות אליך"]);   // שלב 2: השאלות הן מה שאסף בא לענות עליו, לא מאחורי לחיצה
     if (d.mail_state) KEEP_OPEN.add("מייל");   // 03/10/2026: "מראה מה חזר ומה דחוף בלי לחיצה"
     // 03/10/2026 (ש1, אימות-עין): בסוף-שבוע המהדורה היא הגוף - פרושה, לא מאחורי לחיצה; וגם כדאי/לא-כדאי הקצר.
     if (d.weekend === true) {
@@ -649,6 +630,47 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     });
   }
   app.appendChild(mk("p", "disc", "פחות, אבל טוב יותר"));
+  // תיקון לשלב 1 (שלב 2, §6.3 [פ18]): בסוף-שבוע מקטע "שאלות אליך" (exceptional בלבד) יושב במקום שבו עמד
+  // "המשך מכאן", אחרי כל הבריף, ו"מדדי-המכונה" (מ-app.js) מעוגן אחריו. בחול המקטע במקומו למעלה.
+  if (WE) {
+    const hq = renderHomeQuestions(qs, { token, demo, weekend: true });
+    if (hq) app.appendChild(hq);
+  }
+}
+
+// שלב 2 (חוזה §6.5): "הצעד הבא" כשורה גלויה: טקסט + ידית (trigger ← session) + "💬 תגובה" שפותח תיבה
+// ושולח decide-* verdict note על card-<sha1(title)>.
+function nextStepLine(o, ctx) {
+  const wrap = mk("div", "next-line");
+  const top = mk("div", "nx-row");
+  top.appendChild(mk("span", "nx-lbl", "הצעד הבא"));
+  top.appendChild(mk("span", "nx-txt dtxt", o.next));
+  wrap.appendChild(top);
+  const acts = mk("div", "nx-acts");
+  if (o.trigger) {
+    const hb = handleButton({ kind: "session", target: o.trigger, label: "העתק טריגר" }, { id: "card" }, ctx, "btn-ghost nx-handle");
+    if (hb) acts.appendChild(hb);
+  }
+  const rb = mk("button", "btn-ghost nx-reply", "💬 תגובה"); rb.type = "button";
+  const box = mk("div", "nx-box"); box.hidden = true;
+  const ta = mk("textarea", "ta-remark"); ta.rows = 2; ta.placeholder = "תגובה לכרטיס…";
+  const send = mk("button", "commit", "שלח"); send.type = "button";
+  const done = mk("span", "locked-tag nx-done"); done.hidden = true;
+  rb.addEventListener("click", () => { box.hidden = !box.hidden; if (!box.hidden) ta.focus(); });
+  send.addEventListener("click", async () => {
+    const note = ta.value.trim();
+    if (!note) return;
+    send.disabled = true;
+    const id = await cardId(o.title);
+    const res = ctx.demo ? { ok: true, demo: true } : await submitAnswer({ id, title: o.title, origin: "brief" }, { kind: "text", note }, ctx);
+    if (!res.ok) { send.disabled = false; done.hidden = false; done.textContent = "השליחה נכשלה · " + (res.error || ""); return; }
+    done.hidden = false; done.textContent = (ctx.demo ? "מצב הדגמה · " : "") + "נשלח ✓";
+    ta.value = ""; box.hidden = true; send.disabled = false;
+  });
+  box.appendChild(ta); box.appendChild(send);
+  acts.appendChild(rb);
+  wrap.appendChild(acts); wrap.appendChild(box); wrap.appendChild(done);
+  return wrap;
 }
 
 // 03/10/2026 (חוזה §3,§11): מקטע מקופל "מדדי-המכונה" - machine_pulse, אחריו services המלא (ו-gated).

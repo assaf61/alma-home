@@ -595,3 +595,40 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .mail-open { margin-top: 6px; }
 .machine-metrics { margin: 18px 16px 8px; border: 1px solid var(--border); border-radius: var(--r-m); background: var(--surface); padding: 0 14px; }
 .machine-metrics .mm-body { padding-bottom: 10px; font-size: .88rem; color: var(--txt-m); }
+
+/* ---------- שלב 2 (03/10/2026): "שאלות אליך" - כרטיס אחד לכל פריט, בעמוד #answer ובבית ---------- */
+.qgroup { margin-top: 12px; }
+.qgroup-h { font-size: .8rem; font-weight: 600; color: var(--txt-s); margin: 0 2px 6px; }
+.qcard {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-l);
+  padding: 14px 16px; box-shadow: var(--sh-s); margin-bottom: 11px;
+}
+.qcard.stop { border-color: var(--err); }
+.qcard.exc { border-inline-start: 4px solid var(--err); }
+.qcard.sent { opacity: .55; }
+.qc-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .78rem; color: var(--txt-s); margin-bottom: 4px; }
+.qc-tag { font-size: .66rem; font-weight: 600; border-radius: var(--r-f); padding: 2px 9px; }
+.qc-tag.exc { color: var(--err-d); background: var(--err-l); }
+.qc-q { font-weight: 700; font-size: 1.02rem; line-height: 1.5; color: var(--txt-x); }
+.qc-bg { margin-top: 6px; font-size: .9rem; line-height: 1.55; color: var(--txt-m); white-space: pre-wrap; }
+.qcard .eng-opts .opt.rec { border-color: var(--acc); background: var(--acc-l); font-weight: 600; }
+.qcard .ta-remark { margin-top: 4px; min-height: 0; }
+.qc-foot { align-items: center; flex-wrap: wrap; }
+.qc-foot .iconbtn, .qc-foot .qc-handle { flex: 1 1 auto; justify-content: center; text-align: center; }
+.qc-all { width: 100%; margin-top: 4px; }
+.q-fold { margin: 18px 0 8px; border: 1px solid var(--border); border-radius: var(--r-m); background: var(--surface); padding: 0 12px 6px; }
+.q-fold > summary { padding: 14px 4px; cursor: pointer; color: var(--txt-m); font-weight: 600; list-style-position: inside; }
+.q-sec { margin-top: 14px; }
+.home-q .qcard:last-child { margin-bottom: 0; }
+
+/* "הצעד הבא" בכרטיס-פירוט: שורה גלויה + ידית + תגובה (§6.5) */
+.next-line { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.nx-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.nx-lbl { font-size: .72rem; font-weight: 600; color: var(--acc-d); background: var(--acc-l); border-radius: var(--r-f); padding: 2px 9px; }
+.nx-txt { flex: 1 1 200px; font-size: .92rem; color: var(--txt); }
+.nx-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.nx-acts .btn-ghost { flex: 1 1 auto; justify-content: center; text-align: center; }
+.nx-box { margin-top: 8px; }
+.nx-done { margin-top: 8px; }
+.qc-handle, .nx-handle, .nx-reply, .qc-all { border: 1px solid var(--border-s); border-radius: var(--r-f); background: var(--bg); min-height: 38px; padding: 7px 13px; font-size: .85rem; }
+.qc-handle:disabled { opacity: .6; cursor: default; }

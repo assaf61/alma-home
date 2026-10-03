@@ -42,13 +42,23 @@ function item(o) {
     options: Array.isArray(o.options) ? o.options : [],
     tier: o.tier || DEFAULT_TIER,
     raw: o.raw,
+    // שלב 2 (חוזה §1): שדות הפריט האחד. פריט שלא נושא אותם (לוח ישן) נופל לערכי-ברירת-מחדל.
+    question: o.question || "", background: o.background || "",
+    urgency: o.urgency || "", exceptional: o.exceptional === true,
+    topic: o.topic || "", handle: o.handle || null,
+    at: o.at || "", ageDays: typeof o.ageDays === "number" ? o.ageDays : 0, ageTier: o.ageTier,
   };
 }
 
+// שלב 2 (חוזה §6.1): כל שדות סעיף 1 עוברים. origin נופל ל-"question"; urgency חסר (לוח ישן)
+// נגזר מהמדרגה: tier 1 = עוצר-יום, אחרת היום - כדי שפריט לא ייעלם מאחורי מקטע השבועי המקופל.
 export function normalizeEngine(awaiting) {
   return (awaiting || []).map((it) => item({
-    id: it.id, origin: "engine", title: it.title, detail: it.detail,
+    id: it.id, origin: it.origin || "question", title: it.title, detail: it.detail,
     recommendation: it.recommendation, options: it.options, tier: it.tier, raw: it,
+    question: it.question || it.title, background: it.background,
+    urgency: ["stop", "today", "week"].includes(it.urgency) ? it.urgency : (it.tier === 1 ? "stop" : "today"),
+    exceptional: it.exceptional, topic: it.topic, handle: it.handle, at: it.at, ageDays: it.ageDays, ageTier: it.ageTier,
   }));
 }
 
@@ -70,8 +80,13 @@ export function normalizeQboard(list) {
 
 // מיון לפי סולם-העדיפויות (הכרעת 22/07): אדם-מחכה → ריצה-חונה → שירות → מכונה.
 // Array.sort יציב, ולכן סדר-ההגעה נשמר בתוך אותה מדרגה - זה "ותק שובר-שוויון".
+// שלב 2 (חוזה §2, "סינון ומיון"): urgency (stop, today, week) ← tier ← ageDays יורד.
+const URGENCY_RANK = { stop: 0, today: 1, week: 2 };
 export function mergeAndSort(lists) {
-  return [].concat(...(lists || []).filter(Boolean)).sort((a, b) => a.tier - b.tier);
+  return [].concat(...(lists || []).filter(Boolean)).sort((a, b) =>
+    (URGENCY_RANK[a.urgency] ?? 1) - (URGENCY_RANK[b.urgency] ?? 1)
+    || a.tier - b.tier
+    || (b.ageDays || 0) - (a.ageDays || 0));
 }
 
 // ---------- דחייה ----------
@@ -139,17 +154,38 @@ function answerText(answer) {
 }
 
 async function toEngine(it, answer, ctx) {
-  // הרחבה תואמת-לאחור: verdict נשאר yes/no לצרכן הקיים, ואות מגיעה כ-"option".
-  // כל עוד הצרכן בצד-המכונה לא מכיר את הערך הזה, שורת האותיות מוסתרת על פריטי
-  // engine (ראה canShowOptions) - עדיף כפתור שלא קיים מכפתור שנבלע בשקט.
+  // שלב 2 (חוזה §6.1): כל origin מנותב לכאן. טקסט בלבד = verdict "note" (תשובה חופשית שסוגרת);
+  // אות = "option". title נוסע לצד-המכונה (שער-המענה וה-brief-settled משתמשים בו).
   const at = new Date().toISOString();
+  const verdict = answer.kind === "text" ? "note" : answer.kind;
   const payload = {
-    id: it.id, verdict: answer.kind, note: (answer.note || "").trim(), at, src: "phone",
+    id: it.id, verdict, note: (answer.note || "").trim(), at, src: "phone", title: it.title || "",
   };
   if (answer.kind === "option") { payload.option = answer.option; payload.optionLabel = answer.optionLabel || ""; }
   const fname = `decide-${Date.now()}-${it.id}.json`;
   await putDrivePathText(ctx.token, `${CONFIG.engineInboxPath}/${fname}`, JSON.stringify(payload, null, 2));
-  return { ok: true, verdict: answer.kind };
+  return { ok: true, verdict };
+}
+
+// "הכן למחשב" (חוזה §4,§5): בקשת-מוכנות בלבד, לא הרצה. הצד-המכונה לוקח את ה-target מהפריט שלו.
+export async function requestHands(it, ctx) {
+  if (ctx && ctx.demo) return { ok: true, demo: true };
+  try {
+    const payload = { kind: "hands-request", id: it.id, at: new Date().toISOString() };
+    await putDrivePathText(ctx.token, `${CONFIG.engineInboxPath}/hands-${Date.now()}-${it.id}.json`, JSON.stringify(payload, null, 2));
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || "שגיאה לא ידועה" };
+  }
+}
+
+// מזהה כרטיס-פירוט (חוזה §6.5): card- + 12 תווי-hex ראשונים של sha1 על הכותרת המנורמלת
+// (רווחים מכווצים + trim), כמו norm בצד-המכונה.
+export async function cardId(title) {
+  const norm = String(title || "").replace(/\s+/g, " ").trim();
+  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(norm));
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return "card-" + hex.slice(0, 12);
 }
 
 async function toActions(it, answer, ctx) {
@@ -178,11 +214,9 @@ async function toQboard(it, answer, ctx) {
 export async function submitAnswer(it, answer, ctx) {
   if (!answerText(answer) && answer.kind === "text") return { ok: false, error: "צריך תשובה" };
   if (ctx && ctx.demo) return { ok: true, demo: true };
+  // toActions/toQboard לא נקראים יותר (שלב 2): הכתיבה לקבצי-המקור היא של המכונה בלבד.
   try {
-    if (it.origin === "engine") return await toEngine(it, answer, ctx);
-    if (it.origin === "actions") return await toActions(it, answer, ctx);
-    if (it.origin === "qboard") return await toQboard(it, answer, ctx);
-    return { ok: false, error: "מקור לא מוכר: " + it.origin };
+    return await toEngine(it, answer, ctx);
   } catch (e) {
     return { ok: false, error: (e && e.message) || "שגיאה לא ידועה" };
   }
@@ -197,38 +231,50 @@ export function canShowOptions(it) {
   return !!(it.options && it.options.length);
 }
 
-// ---------- טעינת שלושת המקורות ----------
-// Promise.allSettled: מקור שנפל לא מפיל את הדלפק. מה שנטען - מוצג.
+// ---------- טעינת המקור האחד ----------
+// שלב 2 (חוזה §6.1): רק engine-board.json. actions.md ו-open-questions.md כבר לא נקראים מהטלפון;
+// המכונה מפרסמת אותם כפריטים בלוח (guard-server bridgeTick). מקור שנפל מדווח ב-failed.
 
 export async function loadAllSources(token) {
-  const [eng, act, qb] = await Promise.allSettled([
-    getDrivePathText(token, CONFIG.engineBoardPath),
-    getDrivePathText(token, CONFIG.actionsPath),
-    getDrivePathText(token, CONFIG.openQuestionsPath),
-  ]);
-
   const failed = [];
-  let board = null, engineItems = [], actionItems = [], qboardItems = [];
-
-  if (eng.status === "fulfilled" && eng.value != null) {
-    try { board = JSON.parse(eng.value); engineItems = normalizeEngine(board.awaiting); }
-    catch { failed.push("לוח המנוע (JSON שבור)"); }
-  } else if (eng.status === "rejected") { failed.push("לוח המנוע"); }
-
-  if (act.status === "fulfilled" && act.value != null) {
-    try { actionItems = normalizeActions(parseBody(splitHead(act.value).body)); }
-    catch { failed.push("נתיב הפעולות"); }
-  } else if (act.status === "rejected") { failed.push("נתיב הפעולות"); }
-
-  if (qb.status === "fulfilled" && qb.value != null) {
-    try { qboardItems = normalizeQboard(listOpenQuestions(qb.value)); }
-    catch { failed.push("לוח השאלות"); }
-  } else if (qb.status === "rejected") { failed.push("לוח השאלות"); }
-
+  let board = null, items = [];
+  try {
+    const raw = await getDrivePathText(token, CONFIG.engineBoardPath);
+    if (raw == null) failed.push("לוח המנוע (לא נמצא)");
+    else { board = JSON.parse(raw); items = mergeAndSort([normalizeEngine(board.awaiting)]); }
+  } catch (e) {
+    failed.push(e instanceof SyntaxError ? "לוח המנוע (JSON שבור)" : "לוח המנוע");
+    board = null; items = [];
+  }
   return {
     board: board || { awaiting: [], receipts: [], locked: [] },
-    items: mergeAndSort([engineItems, actionItems, qboardItems]),
-    counts: { engine: engineItems.length, actions: actionItems.length, qboard: qboardItems.length },
-    failed,
+    items, counts: countsOf(items), failed,
   };
+}
+
+// הדגמה (חוזה §6.9): אותו מבנה, מהקובץ שבתיקיית-האפליקציה.
+export async function loadDemoSources() {
+  const res = await fetch("./engine-board-sample.json", { cache: "no-store" });
+  if (!res.ok) throw new Error("no engine-board-sample");
+  const board = await res.json();
+  const items = mergeAndSort([normalizeEngine(board.awaiting)]);
+  return { board, items, counts: countsOf(items), failed: [] };
+}
+
+// מונים (חוזה §6.6): הכל נגזר מהלוח בלבד. questions = stop+today, actions = origin action.
+export function countsOf(items) {
+  const c = { total: items.length, stop: 0, today: 0, week: 0, questions: 0, actions: 0 };
+  items.forEach((i) => {
+    if (c[i.urgency] != null) c[i.urgency]++;
+    if (i.urgency === "stop" || i.urgency === "today") c.questions++;
+    if (i.origin === "action") c.actions++;
+  });
+  return c;
+}
+
+// סוף-שבוע (חוזה §6.2): weekend===true בבריף, או יום ו/ש בשעון ירושלים.
+export function isWeekend(brief, now) {
+  if (brief && brief.weekend === true) return true;
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jerusalem", weekday: "short" }).format(now || new Date());
+  return wd === "Fri" || wd === "Sat";
 }

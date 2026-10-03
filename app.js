@@ -9,7 +9,8 @@ import { loadCapture, loadCaptureDemo } from "./capture.js";
 import { loadQuestions, loadQuestionsDemo, countOpenQuestions, listOpenQuestions } from "./questions.js";
 import { loadActions, loadActionsDemo, countWaitingActions, listWaitingActions } from "./actions.js";
 import { loadEngineBoard, loadEngineBoardDemo, loadEyesPass, loadEyesPassDemo, loadLoom, loadLoomDemo } from "./engine.js";
-import { loadAnswer, loadAnswerDemo } from "./answer.js";
+import { loadAnswer, loadAnswerDemo, renderHomeQuestions } from "./answer.js";
+import { loadAllSources, loadDemoSources, isWeekend } from "./counter.js";
 import { listInbox, getDrivePathText, putDrivePathText } from "./graph.js";
 import { toast } from "./ui.js";
 import { CONFIG } from "./config.js";
@@ -117,7 +118,7 @@ function setBadge(route, n) {
 
 function paintCounts(c) {
   if (!c) return;
-  setBadge("distribute", (c.questions || 0) + (c.actions || 0) + (c.threads || 0));
+  setBadge("answer", c.questions || 0);   // שלב 2 (§6.7): תג N = stop+today, על הכפתור השלישי "שאלות אליך"
   document.querySelectorAll(".home-status .hs-chip").forEach((chip) => {
     const n = c[chip.dataset.r];
     const el = chip.querySelector(".hs-n");
@@ -177,13 +178,13 @@ function paintCounts(c) {
 
 async function loadCounts(token) {
   const c = { questions: null, actions: null, threads: null, briefNew: false };
-  const [qText, aText, bText] = await Promise.all([
-    getDrivePathText(token, CONFIG.openQuestionsPath).catch(() => ""),
-    getDrivePathText(token, CONFIG.actionsPath).catch(() => ""),
+  // שלב 2 (חוזה §6.6 [פ17]): כל המונים נגזרים מ-engine-board.json בלבד. לוח שנפל = המונה נשאר null
+  // (קופסה לא מוצגת) ולא "0 · הכול נסגר".
+  const [src, bText] = await Promise.all([
+    loadAllSources(token).catch(() => null),
     getDrivePathText(token, CONFIG.briefPath).catch(() => ""),
   ]);
-  try { c.questions = countOpenQuestions(qText || ""); } catch { c.questions = 0; }
-  try { c.actions = countWaitingActions(aText || ""); } catch { c.actions = 0; }
+  if (src && !(src.failed && src.failed.length)) { c.questions = src.counts.questions; c.actions = src.counts.actions; }
   if (bText) { try { const d = JSON.parse(bText); c.briefNew = !!d.date && d.date !== localStorage.getItem(BRIEF_SEEN_KEY); c.creditLow = !!d.credit_low; c.budgetWarn = !!d.budget_warn; c.budgetPct = (d.budget && d.budget.pct != null) ? d.budget.pct : null; } catch { /* ignore */ } }
   try {
     const items = await listInbox(token, 50);
@@ -301,12 +302,12 @@ async function renderHomeBrief(c) {
   const token = await getToken();
   if (token) {
     try {
-      const data = await loadBriefData(token);
+      const [data, qs] = await Promise.all([loadBriefData(token), loadAllSources(token).catch(() => null)]);
       if (data) {
         // 21/07: הקופסאות החיות בתוך הבריף החליפו את פס-הצ'יפים (phoe) - מידע פעם אחת.
-        renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts, token });
-        await prependResume(c, token);                 // "המשך מכאן" - מ-05/09 בתחתית הבית, לא בראש
-        { const mm = renderMachineMetrics(data); if (mm) c.appendChild(mm); }   // 03/10/2026: מדדי-המכונה אחרי "המשך מכאן"
+        // שלב 2 (§6.3): "המשך מכאן" ירד; "שאלות אליך" (qs) מרונדר בתוך הבריף, במקום ה-fronts.
+        renderBrief(c, data, { onGotoThreads: gotoThreads, onRefreshNarrative: refreshNarrative, live: counts, token, qs });
+        { const mm = renderMachineMetrics(data); if (mm) c.appendChild(mm); }   // 03/10/2026: מדדי-המכונה בתחתית הבית (שלב 2: אחרי "שאלות אליך" בסוף-שבוע)
         if (data.date) localStorage.setItem(BRIEF_SEEN_KEY, data.date);   // viewing home clears "new"
         paintCounts(counts);
         return;
@@ -320,14 +321,14 @@ async function renderHomeBrief(c) {
       go.addEventListener("click", gotoThreads);
       e.appendChild(go);
       c.appendChild(e);
-      await prependResume(c, token);                 // "המשך מכאן" even when there is no brief yet
+      { const hq = renderHomeQuestions(qs, { token, demo: false, weekend: isWeekend(null) }); if (hq) c.appendChild(hq); }   // שלב 2: במקום "המשך מכאן" גם כשאין בריף
       paintCounts(counts);
       return;
     } catch (err) { c.innerHTML = "<p class='err-msg pad'>שגיאת בריף: " + err.message + "</p>"; return; }
   }
   loginGate(c, async () => {
     c.innerHTML = "<p class='muted pad'>טוען הדגמה…</p>";
-    try { renderBrief(c, await loadSampleData(), { demo: true, onGotoThreads: gotoThreads }); prependResumeDemo(c); const sample = await loadSampleData(); const mm = renderMachineMetrics(sample); if (mm) c.appendChild(mm); }
+    try { const qs = await loadDemoSources().catch(() => null); renderBrief(c, await loadSampleData(), { demo: true, onGotoThreads: gotoThreads, qs, live: qs ? { questions: qs.counts.questions, actions: qs.counts.actions, threads: null } : null }); const sample = await loadSampleData(); const mm = renderMachineMetrics(sample); if (mm) c.appendChild(mm); }
     catch { c.innerHTML = "<p class='err-msg pad'>הדגמה לא זמינה</p>"; }
   });
 }
@@ -368,9 +369,10 @@ async function renderActions() {
 async function fillDistribute(c, token) {
   c.innerHTML = "";
   const boxes = [];
-  for (let i = 0; i < 3; i++) { const b = mk("div", "dist-sec"); c.appendChild(b); boxes.push(b); }
-  if (token) { await loadThreads(token, boxes[0]); await loadQuestions(token, boxes[1]); await loadActions(token, boxes[2]); }
-  else { loadThreadsDemo(boxes[0]); loadQuestionsDemo(boxes[1]); loadActionsDemo(boxes[2]); }
+  // שלב 2 (§6.7): קופסת-השאלות ירדה (השאלות ב"שאלות אליך"); נשארים החוטים והפעולות.
+  for (let i = 0; i < 2; i++) { const b = mk("div", "dist-sec"); c.appendChild(b); boxes.push(b); }
+  if (token) { await loadThreads(token, boxes[0]); await loadActions(token, boxes[1]); }
+  else { loadThreadsDemo(boxes[0]); loadActionsDemo(boxes[1]); }
 }
 async function renderDistribute() {
   const c = pages.distribute;
@@ -420,7 +422,8 @@ async function renderEngine() {
 }
 
 async function route() {
-  const r = (location.hash || "#home").replace("#", "");
+  let r = (location.hash || "#home").replace("#", "");
+  if (r === "questions") { r = "answer"; history.replaceState(null, "", "#answer"); }   // שלב 2 (§6.7): הפניה
   if (r === "brief") { showPage("home"); await renderBriefPage(); refreshCounts(); return; }
   const known = pages[r] ? r : "home";
   showPage(known);

@@ -108,10 +108,22 @@ const DRAFT_KEY = "engine-note-draft";      // { [id]: text } - טיוטת הע�
 // 23/07 (עמוד-המענה "מה השאלה?"): ההכרעות המקומיות נחשפות גם ל-answer.js -
 // אותו מפתח localStorage, כדי ששני הפנים (חדר-מלא / עמוד-מענה) לא יסתרו זה את זה.
 export function localDecided() { return readJSON(DECIDED_KEY, {}); }
+// שלב 2: כרטיס "שאלות אליך" רושם הכרעה מקומית באותו מפתח, ומנקה ids שכבר ירדו מהלוח.
+export function rememberDecided(id, rec) {
+  const m = readJSON(DECIDED_KEY, {});
+  m[id] = rec; writeJSON(DECIDED_KEY, m);
+}
+export function pruneLocalDecided(liveIds) {
+  const m = readJSON(DECIDED_KEY, {});
+  let changed = false;
+  Object.keys(m).forEach((id) => { if (!liveIds.has(id)) { delete m[id]; changed = true; } });
+  if (changed) writeJSON(DECIDED_KEY, m);
+}
 
 // סולם-העדיפויות (הכרעת 22/07): תג-מדרגה על כרטיס ממתין. שירות מעל מכונה, תמיד.
 const TIER_HE = { 1: "אדם מחכה", 2: "ריצה חונה", 3: "שירות", 4: "מכונה" };
-const ORIGIN_HE = { actions: "פעולות", qboard: "לוח", engine: "מנוע" };
+const ORIGIN_HE = { actions: "פעולות", qboard: "לוח", engine: "מנוע",
+  question: "שאלה", pending: "החלטה", loom: "חוטים", action: "פעולה", brief: "בריף", scream: "השומר" };
 
 function renderGuardLine(guard) {
   const wrap = mk("div", "eng-guard");
@@ -192,6 +204,22 @@ function renderAwaitingItem(it, ctx) {
     return row;
   }
 
+  // שלב 2 (חוזה §6.8): המענה עבר ל"שאלות אליך". כאן רק הפניה.
+  row.appendChild(answerLinkRow());
+  return row;
+}
+
+// שלב 2: הקישור שמחליף את כפתורי-המענה בחדר-המכונות ובנול.
+function answerLinkRow() {
+  const r = mk("div", "eng-defer");
+  const a = mk("a", "btn-ghost", "ענה ב'שאלות אליך' ←");
+  a.href = "#answer"; a.style.display = "inline-block"; a.style.textDecoration = "none";
+  r.appendChild(a);
+  return r;
+}
+
+// קוד-מת מ-6.8: טופס-המענה הישן של כרטיס-לוח (כן/לא/אותיות/הערה). לא נקרא יותר; נשאר בקובץ בכוונה.
+function renderAwaitingFormLegacy(row, it, ctx) {
   // שדה הערה שגדל עם התוכן (בלי גלילה פנימית) + טיוטה נשמרת ל-localStorage תוך כדי הקלדה.
   const ta = mk("textarea", "ta-remark ta-grow"); ta.placeholder = "הערה (לא חובה)…"; ta.rows = 1;
   const drafts0 = readJSON(DRAFT_KEY, {});
@@ -249,7 +277,6 @@ function renderAwaitingItem(it, ctx) {
   tts.addEventListener("click", () => speakItem(it));
   deferRow.appendChild(tts);
   row.appendChild(deferRow);
-
   return row;
 }
 
@@ -289,7 +316,7 @@ export function renderAwaitingSection(items, ctx) {
   sec.appendChild(list);
   // מונה-דחיות גלוי: דחייה לא הופכת להיעלמות שקטה.
   if (snoozed) sec.appendChild(mk("p", "hint", `${snoozed} נדחו להיום · יחזרו מחר ב-07:00`));
-  sec.appendChild(mk("p", "hint", "כן/לא/אות נשלחים מיד עם ההערה שלך (אם כתבת). ההכרעה מסומנת גם במכשיר הזה עד שהלוח יתעדכן."));
+  sec.appendChild(mk("p", "hint", "המענה על הפריטים האלה נעשה ב'שאלות אליך'. הלוח כאן לצפייה."));
   return sec;
 }
 
@@ -651,6 +678,13 @@ function renderLoomItem(it, ctx) {
   // (ישנים/טופלו) נשארים קריאה-בלבד: ctx.interactive=false.
   if (!ctx || !ctx.interactive) return row;
 
+  // שלב 2 (חוזה §6.8): כפתורי-המענה של הנול ירדו; המענה ב"שאלות אליך".
+  row.appendChild(answerLinkRow());
+  return row;
+}
+
+// קוד-מת מ-6.8: טופס השאר/ארכב של הנול. לא נקרא יותר; נשאר בקובץ בכוונה.
+function loomAnswerFormLegacy(row, it, ctx) {
   const already = (ctx.decided || {})[it.id];
   if (already) {
     row.appendChild(mk("span", "locked-tag", "נרשם: " + (already.verdict === "yes" ? "השאר" : "ארכב")
