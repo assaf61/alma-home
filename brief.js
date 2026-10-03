@@ -274,7 +274,7 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       const hrs = w && (w.hours != null ? w.hours : w.age_hours);
       return "🛑 טיוטה" + (w && w.to ? " ל" + w.to : "") + (w && w.subject ? ": " + w.subject : "") + (hrs != null ? " · " + hrs + " שעות" : "");
     };
-    const stops = WE ? [] : (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: draftTitle(w), body: (w && w.body) || "", handle: w && w.handle, url: w && w.url }));
+    const stops = WE ? [] : (d.drafts_waiting || []).map((w, i) => ({ id: "dw-" + i, title: draftTitle(w), body: (w && w.body) || "", handle: (w && w.handle) || { kind: "url", target: "https://outlook.office.com/mail/drafts", label: "פתח את הטיוטות" }, url: w && w.url }));
     // פריטי mail_state.urgent עם exceptional מצטרפים לרצועה (גם בחול), עם url.
     const exc = ((d.mail_state && d.mail_state.urgent) || []).filter((u) => u && u.exceptional)
       .map((u, i) => ({ id: "ex-" + i, title: "✉️ " + (u.subject || "") + (u.from ? " · " + u.from : ""), body: u.why || "", url: u.url || "" }));

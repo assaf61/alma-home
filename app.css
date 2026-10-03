@@ -462,7 +462,7 @@ img, audio, video, iframe, svg { max-width: 100%; }
   border-radius: var(--r-s); padding: 11px 12px; min-height: 44px; margin-bottom: 6px;
   cursor: pointer; transition: background var(--t-base), border-color var(--t-base);
 }
-.eng-opts .opt:hover { background: var(--acc-l); border-color: var(--acc); }
+@media (hover: hover) { .eng-opts .opt:hover { background: var(--acc-l); border-color: var(--acc); } }   /* שלב 2: בנייד :hover נדבק אחרי נגיעה ונראה כמו "מסומן" */
 .eng-opts .opt:disabled { opacity: .6; cursor: default; }
 
 .eng-origin {
@@ -632,3 +632,8 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .nx-done { margin-top: 8px; }
 .qc-handle, .nx-handle, .nx-reply, .qc-all { border: 1px solid var(--border-s); border-radius: var(--r-f); background: var(--bg); min-height: 38px; padding: 7px 13px; font-size: .85rem; }
 .qc-handle:disabled { opacity: .6; cursor: default; }
+.qc-free { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.qc-free .iconbtn { align-self: flex-start; }
+.qc-send { border-color: var(--acc); color: var(--acc-d); }
+.qc-tts { flex: 0 0 auto !important; }
+.qc-free[hidden] { display: none; }

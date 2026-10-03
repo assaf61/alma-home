@@ -5,7 +5,7 @@
 // (engine-board.json) ואותו inbox של חדר-המכונות - אפס צינור חדש, פנים ממוקדות.
 // חדר-המכונות המלא נשאר נגיש בקישור מלמטה.
 import { localDecided, rememberDecided, pruneLocalDecided } from "./engine.js";
-import { APP_VERSION, toast, micButton } from "./ui.js";
+import { APP_VERSION, toast, micButton, speak } from "./ui.js";
 // 16/08 (הכרעת אסף): הדלפק בולע את שלושת המקורות. הספירה של אותו בוקר הראתה
 // למה - לוח-המנוע ולוח-השאלות היו ריקים, וכל 16 הממתינים ישבו ב-actions.md,
 // המשטח היחיד שאין בו פעלי-מענה. הדלפק אמר "הכל נסגר" ודיווח אמת.
@@ -199,13 +199,16 @@ export function renderQuestionCard(it, ctx) {
     row.appendChild(opts);
   }
 
-  row.appendChild(ta); controls.push(ta);
-  setTimeout(() => autoGrow(ta), 0);   // גובה נכון גם כשיש טיוטה
-  const micRow = mk("div", "rec-row"); micRow.appendChild(micButton(ta)); row.appendChild(micRow); controls.push(micRow);
-
-  const free = mk("button", "commit", "שלח תשובה חופשית"); free.type = "button";
+  // תשובה חופשית: מוסתרת מאחורי כפתור משני בשורה התחתונה. הטקסט שבתיבה עדיין מצטרף כהערה ללחיצת-אות.
+  const freeBox = mk("div", "qc-free"); freeBox.hidden = true; controls.push(freeBox);
+  freeBox.appendChild(ta);
+  setTimeout(() => autoGrow(ta), 0);
+  freeBox.appendChild(micButton(ta));
+  const free = mk("button", "iconbtn qc-send", "שלח"); free.type = "button";
   free.addEventListener("click", () => send({ kind: "text", note: ta.value }, "תשובה חופשית"));
-  buttons.push(free); row.appendChild(free); controls.push(free);
+  buttons.push(free); freeBox.appendChild(free);
+  row.appendChild(freeBox);
+  if (ta.value) freeBox.hidden = false;   // טיוטה קיימת נשארת גלויה
 
   const foot = mk("div", "eng-defer qc-foot"); controls.push(foot);
   const defer = mk("button", "iconbtn", "לא עכשיו"); defer.type = "button";
@@ -216,6 +219,12 @@ export function renderQuestionCard(it, ctx) {
     setTimeout(() => { row.remove(); if (c.onSnooze) c.onSnooze(); }, 180);
   });
   buttons.push(defer); foot.appendChild(defer);
+  const toggle = mk("button", "iconbtn qc-toggle", "✎ תשובה חופשית"); toggle.type = "button";
+  toggle.addEventListener("click", () => { freeBox.hidden = !freeBox.hidden; if (!freeBox.hidden) { autoGrow(ta); ta.focus(); } });
+  foot.appendChild(toggle);
+  const tts = mk("button", "iconbtn qc-tts", "🔊"); tts.type = "button"; tts.title = "הקרא לי"; tts.setAttribute("aria-label", "הקרא לי");
+  tts.addEventListener("click", () => speak([it.question || it.title, it.background].filter(Boolean).join(". ")));
+  foot.appendChild(tts);
   const hb = handleButton(it.handle, it, c);
   if (hb) foot.appendChild(hb);
   row.appendChild(foot);
