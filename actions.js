@@ -96,6 +96,37 @@ export function serialize(head, items) {
   return head + out.join("\n");
 }
 
+// 09/10/2026 - מיזוג מול הענן. שער-הדריסה של 05/09 תופס רק כיווץ של יותר מחצי, ולכן שורה
+// בודדת שהמכונה הוסיפה בזמן שהדף היה פתוח נמחקה בשמירה הבאה מהדף: serialize בנה את הקובץ
+// כולו מהמודל שנטען בפתיחה. כך כנראה נעלמה ב-07/10 הוראת answer-gate של brief-78319e67d0ef
+// (אסף הכריע 08/10 לשחזר ולתקן). עכשיו כל שמירה קוראת את הענן ומחילה עליו רק את מה שהשתנה
+// בדף מאז הבסיס: פריט שנוסף, פריט שנמחק, ושדות שנערכו. מה שאחרים כתבו בינתיים נשאר.
+// פריט שנערך בדף ובינתיים השתנה או נמחק בענן לא נמצא; השינוי שלו לא נשמר ונספר ב-conflicts.
+const itemKey = (it) => it.date + "|" + it.source + "|" + it.text;
+const FIELDS = ["text", "owner", "status", "tag", "result"];
+export function baseOf(items) {
+  const fields = new Map();
+  for (const it of items) fields.set(it, { key: itemKey(it), ...Object.fromEntries(FIELDS.map((f) => [f, it[f] || ""])) });
+  return { list: items.slice(), fields };
+}
+export function mergeIntoCloud(base, local, cloud) {
+  const used = new Set();
+  const find = (key) => { const i = cloud.findIndex((c, j) => !used.has(j) && itemKey(c) === key); if (i >= 0) used.add(i); return i; };
+  const drop = new Set(); let conflicts = 0;
+  for (const it of base.list) if (!local.includes(it)) { const i = find(base.fields.get(it).key); if (i >= 0) drop.add(i); }
+  for (const it of local) {
+    const b = base.fields.get(it); if (!b) continue;
+    const changed = FIELDS.filter((f) => (it[f] || "") !== b[f]);
+    if (!changed.length) continue;
+    const i = find(b.key);
+    if (i < 0) { conflicts++; continue; }
+    for (const f of changed) cloud[i][f] = it[f];
+  }
+  const items = local.filter((it) => !base.fields.has(it)).concat(cloud.filter((_, i) => !drop.has(i)));
+  items._tail = cloud._tail;
+  return { items, conflicts };
+}
+
 export function laneOf(it) { return it.status === "done" ? "done" : (it.owner === "assaf" ? "you" : "machine"); }
 
 let speaking = false;
@@ -340,28 +371,36 @@ export async function loadActions(token, container) {
 
   let saving = false;
   const loadedLen = (text || "").length;
-  const loadedItems = items.length;
   // 05/09/2026 - שער-הדריסה. באותו ערב שמירה אחת מהטלפון החליפה קובץ של 119K בקובץ של 1K:
   // הראש ושורה ידנית אחת. serialize בונה את הקובץ כולו מהמודל, ולכן מודל ריק או חלקי
   // (טעינה שחזרה קצרה, גרסת-אפליקציה ישנה במטמון, 404 חולף) מוחק את כל נתיב-הפעולות.
   // הכלל: לפני PUT קוראים שוב מהענן; אם התוצר קטן מחצי ממה שיש בענן, או שהמודל ריק
   // בעוד שבענן יש פריטים - לא שומרים, ומודיעים. הפריט החדש נשאר על המסך ולא אובד.
+  // 09/10/2026: הקובץ נבנה עכשיו מהענן ועליו רק השינויים של הדף (mergeIntoCloud). בלי קריאה
+  // מהענן אין על מה למזג, ולכן לא שומרים. הבסיס מתקדם רק אחרי שמירה שהצליחה; שינוי שנעשה
+  // בזמן שמירה נשמר בסבב נוסף (again) במקום להיזרק.
+  let base = baseOf(items), again = false;
   const save = async (model) => {
-    if (saving) return; saving = true;
+    if (saving) { again = true; return; } saving = true;
     try {
-      const out = serialize(head, model);
+      const start = baseOf(model || []);
       let cloud = null;
       try { cloud = await getDrivePathText(token, CONFIG.actionsPath); } catch { cloud = null; }
-      const ref = Math.max(loadedLen, (cloud || "").length);
-      const cloudItems = cloud ? parseBody(splitHead(cloud).body).length : loadedItems;
-      if ((ref > 2000 && out.length < ref * 0.5) || (cloudItems > 0 && (model || []).length === 0)) {
+      if (cloud == null) { toast("לא נשמר: נתיב-הפעולות העדכני לא נקרא מהענן. נסה שוב בעוד רגע."); return; }
+      const ch = splitHead(cloud), cloudModel = parseBody(ch.body), cloudItems = cloudModel.length;
+      const m = mergeIntoCloud(base, model || [], cloudModel);
+      const out = serialize(ch.head, m.items);
+      const ref = Math.max(loadedLen, cloud.length);
+      if ((ref > 2000 && out.length < ref * 0.5) || (cloudItems > 0 && m.items.length === 0)) {
         toast("לא נשמר: השמירה הייתה מוחקת את רוב נתיב-הפעולות (" + out.length + " מול " + ref + " תווים). רענן את הדף ונסה שוב.");
         return;
       }
       await putDrivePathText(token, CONFIG.actionsPath, out);
+      base = start;
+      if (m.conflicts) toast("נשמר, אבל " + (m.conflicts === 1 ? "פריט אחד השתנה" : m.conflicts + " פריטים השתנו") + " בינתיים במקום אחר ולא עודכן. רענן את הדף.");
     }
     catch (e) { toast("שמירה נכשלה: " + e.message); }
-    finally { saving = false; }
+    finally { saving = false; if (again) { again = false; save(model); } }
   };
   calendarAdd = (evt) => createCalendarEvent(token, evt).then(() => toast("נוסף ליומן ✓"));
   container.innerHTML = "";
