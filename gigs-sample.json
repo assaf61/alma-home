@@ -1,0 +1,13 @@
+{
+ "_note": "נתוני הדגמה סינתטיים בלבד, למצב בלי לוגין. הקובץ האמיתי (gigs-latest.json) נשלף מ-OneDrive דרך Graph.",
+ "version": 1,
+ "generated_at": "2099-01-01T06:15",
+ "next_scan": "2099-01-08T06:15",
+ "near": [
+  {"id": "demo1", "title": "טריו ג'אז לדוגמה", "style": "סווינג ווקאלי, שלוש זמרות ושלישיית ליווי", "date": "2099-01-02", "weekday": "שישי", "time": "21:00", "venue": "אולם לדוגמה", "city": "ירושלים", "price": "120 ₪", "url": "https://example.org/", "region": "near", "sold_out": false, "new": true},
+  {"id": "demo2", "title": "ערב בלוז לדוגמה", "style": "בלוז חשמלי, להקה בת ארבעה נגנים", "date": "2099-01-05", "weekday": "שני", "time": "20:00", "venue": "מרכז תרבות לדוגמה", "city": "מודיעין", "price": null, "url": "https://example.org/", "region": "near", "sold_out": false, "new": false}
+ ],
+ "far": [
+  {"id": "demo3", "title": "פסטיבל ג'אז לדוגמה", "style": "אמן אורח מחו\"ל עם רביעייה", "date": "2099-01-07", "weekday": "רביעי", "time": "21:30", "venue": "מועדון לדוגמה", "city": "תל אביב-יפו", "price": "180 ₪", "url": "https://example.org/", "region": "far", "far_reason": "הופעה נדירה של אמן בינלאומי", "sold_out": false, "new": false}
+ ]
+}

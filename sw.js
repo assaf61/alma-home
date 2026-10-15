@@ -3,14 +3,15 @@
 // network. No sensitive data is ever cached: the brief and threads are fetched
 // live per session and rendered in memory.
 
-const CACHE = "ah-shell-v48"; // 15/10/2026: brief "הוכן לך" section (answers the executor wrote into threads)
+const CACHE = "ah-shell-v49"; // 15/10/2026: brief "הופעות · בלוז וג'אז" box (gigs-scout) + gigs-sample.json
+// v48 (15/10/2026): brief "הוכן לך" section (answers the executor wrote into threads)
 // 16/08/2026: counter.js נוסף ב-175db9b ומעולם לא נכנס לרשימה כאן, כלומר אופליין
 // הדלפק לא נטען כלל. domains.js חדש. שניהם נכנסים, והגרסה עולה כדי שהמטמון הישן
 // לא ישרוד ויגיש קליפה חסרה.
 const SHELL = [
   "./", "./index.html", "./app.css", "./tokens.css", "./manifest.webmanifest",
   "./app.js", "./auth.js", "./graph.js", "./config.js", "./queue.js", "./domains.js",
-  "./brief.js", "./threads.js", "./capture.js", "./questions.js", "./actions.js", "./engine.js", "./answer.js", "./counter.js", "./ui.js", "./brief-sample.json", "./engine-board-sample.json",
+  "./brief.js", "./threads.js", "./capture.js", "./questions.js", "./actions.js", "./engine.js", "./answer.js", "./counter.js", "./ui.js", "./brief-sample.json", "./gigs-sample.json", "./engine-board-sample.json",
   "./read-aloud-neural.js",
   "./alma-enso.jpg", "./icon-192.png", "./icon-512.png",
 ];

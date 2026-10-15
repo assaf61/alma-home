@@ -9,6 +9,7 @@ import { CONFIG } from "./config.js";
 import { getDrivePathText, getDrivePathBlob } from "./graph.js";
 import { handleButton, validHandle, renderHomeQuestions } from "./answer.js";
 import { submitAnswer, cardId } from "./counter.js";
+import { speak } from "./ui.js";
 
 const LOGO = "./alma-enso.jpg";
 
@@ -193,6 +194,103 @@ function boxCard(label, n, base, onGo, freeText) {
   b.appendChild(mk("span", "cta-arrow", "←"));
   if (onGo) b.addEventListener("click", onGo);
   return b;
+}
+
+// 15/10/2026 (סייר ההופעות, הכרעת אסף בישיבת-ההכרעות): בלוז וג'אז חיים בירושלים והסביבה.
+// הסורק (AI - מקומי\gigs-scout, משימת "Alma gigs scout" בחמישי) כותב gigs-latest.json ליד
+// הבריף; כאן הוא נשלף חי בכל פתיחה. הופעה שעברה יורדת כאן, ורשימה בת יותר מ-8 ימים מסומנת
+// באדום, כך שסורק שמת נראה במשטח עצמו. ההזמנה תמיד באתר המכירה, בידיים של אסף.
+const GIGS_STALE_DAYS = 8;
+const GIGS_OPEN = 4;
+const HE_MONTH = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+function localDay() { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; }
+function gigCard(g) {
+  const c = mk("div", "card gig");
+  const r = mk("div", "row");
+  const w = mk("div", "when");
+  const [, m, dd] = String(g.date).split("-");
+  w.appendChild(document.createTextNode(`${g.weekday || ""} ${dd}/${m}`));
+  if (g.time) { w.appendChild(mk("br")); w.appendChild(mk("span", "ltr", g.time)); }
+  r.appendChild(w);
+  const what = mk("div", "what");
+  const t = mk("div", "gig-title", g.title);
+  if (g.new) { t.appendChild(document.createTextNode(" ")); t.appendChild(mk("span", "tag trig", "חדש")); }
+  if (g.sold_out) { t.appendChild(document.createTextNode(" ")); t.appendChild(mk("span", "tag asap", "אזל")); }
+  what.appendChild(t);
+  if (g.style) what.appendChild(mk("div", "muted", g.style));
+  const where = [g.venue, g.city].filter(Boolean).join(", ");
+  const line = [where, g.price].filter(Boolean).join(" · ");
+  if (line) what.appendChild(mk("div", "muted", line));
+  if (g.far_reason) what.appendChild(mk("div", "muted", g.far_reason));
+  if (g.url) {
+    const a = mk("a", "gig-link", "לעמוד ההופעה ←");
+    a.href = g.url; a.target = "_blank"; a.rel = "noopener";
+    what.appendChild(a);
+  }
+  r.appendChild(what); c.appendChild(r);
+  return c;
+}
+function gigSpeech(g) {
+  const [, m, dd] = String(g.date).split("-");
+  const when = `יום ${g.weekday || ""}, ${Number(dd)} ב${HE_MONTH[Number(m) - 1] || ""}` + (g.time ? `, בשעה ${g.time}` : "");
+  return [when, g.title, g.style, [g.venue, g.city].filter(Boolean).join(", "), g.price ? "מחיר " + g.price : ""]
+    .filter(Boolean).join(". ");
+}
+function renderGigs(app, { token, demo }) {
+  if (!token && !demo) return;
+  const s = sec("הופעות · בלוז וג'אז");
+  s.classList.add("sec-gigs");
+  s.hidden = true;
+  app.appendChild(s);
+  (async () => {
+    let data = null;
+    try {
+      if (token) {
+        const txt = await getDrivePathText(token, CONFIG.briefPath.replace("brief-latest.json", "gigs-latest.json"));
+        data = txt ? JSON.parse(txt) : null;
+      } else {
+        const res = await fetch("./gigs-sample.json", { cache: "no-store" });
+        data = res.ok ? await res.json() : null;
+      }
+    } catch { data = null; }
+    if (!data) return;   // הסורק עוד לא רץ - אין קופסה
+    const today = localDay();
+    const near = (data.near || []).filter((g) => g && g.date >= today);
+    const far = (data.far || []).filter((g) => g && g.date >= today);
+    const ageDays = data.generated_at ? (Date.now() - new Date(data.generated_at).getTime()) / 864e5 : Infinity;
+    if (!(ageDays < GIGS_STALE_DAYS)) {
+      const st = mk("div", "brief-stamp stale");
+      st.appendChild(mk("span", "bs-when", "⚠ רשימת ההופעות לא עודכנה מאז " + (data.generated_at ? fmtStamp(data.generated_at) : "לא ידוע")));
+      st.appendChild(mk("span", "bs-msg", "הסורק השבועי לא רץ. ייתכן שחסרות הופעות חדשות."));
+      s.appendChild(st);
+    }
+    if (!near.length) {
+      const c = mk("div", "card");
+      c.appendChild(mk("p", "muted", "אין כרגע הופעות בלוז או ג'אז באזור בשמונת השבועות הקרובים."));
+      s.appendChild(c);
+    }
+    near.slice(0, GIGS_OPEN).forEach((g) => s.appendChild(gigCard(g)));
+    if (near.length > GIGS_OPEN) {
+      const rest = mk("div");
+      near.slice(GIGS_OPEN).forEach((g) => rest.appendChild(gigCard(g)));
+      s.appendChild(detail(`עוד ${near.length - GIGS_OPEN} הופעות באזור`, rest));
+    }
+    if (far.length) {
+      const fr = mk("div");
+      far.forEach((g) => fr.appendChild(gigCard(g)));
+      s.appendChild(detail(`רחוק · תל אביב (${far.length})`, fr));
+    }
+    const foot = mk("div", "gig-foot");
+    if (near.length || far.length) {
+      const tts = mk("button", "iconbtn", "🔊 הקרא לי"); tts.type = "button";
+      tts.addEventListener("click", () => speak(near.concat(far).map(gigSpeech).join(". ")));
+      foot.appendChild(tts);
+    }
+    const nxt = data.next_scan ? " · הסריקה הבאה " + fmtStamp(data.next_scan) : "";
+    foot.appendChild(mk("span", "hint", "עודכן " + (data.generated_at ? fmtStamp(data.generated_at) : "") + nxt + " · מחיר ושעה לאמת באתר המכירה"));
+    s.appendChild(foot);
+    s.hidden = false;
+  })();
 }
 
 export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null, token = null, qs = null } = {}) {
@@ -424,6 +522,9 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     if (lv.actions != null) s.appendChild(boxCard("ממתינות לך", lv.actions, base.actions, goAnswer, "שום דבר לא ממתין לך"));
     if (s.childNodes.length > 1) app.appendChild(s);
   }
+
+  // --- הופעות בלוז וג'אז (15/10/2026): מתחת לקופסאות, בחול ובסוף-שבוע, לא מתקפלת עם המהדורה.
+  renderGigs(app, { token, demo });
 
   // --- מהדורת הבוקר: אחרי שנקראה היא מתקפלת לתחתית כ"מהדורת היום".
   // בסוף-שבוע אין קיפול למהדורה (חוזה §5).
