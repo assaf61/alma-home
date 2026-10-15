@@ -498,6 +498,21 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     if (hq) app.appendChild(hq);
   }
 
+  // הוכן לך (15/10/2026, הכרעת-המסילה): תשובות שהמבצע כתב לקבצי-חוט ואף משטח לא הציג.
+  // הופעה כאן = נמסר; הקבלה נרשמת בבונה (decisions.jsonl kind:"delivered"), והפריט יורד למחרת.
+  if (d.delivered && d.delivered.length) {
+    const s = sec("הוכן לך · " + d.delivered.length);
+    const c = mk("div", "card");
+    const add = (x, into) => { const b = mk("div", "dtxt"); mdInto(b, x.answer || ""); into.appendChild(detail(x.title || x.id, b)); };
+    d.delivered.slice(0, 8).forEach((x) => add(x, c));
+    if (d.delivered.length > 8) {
+      const rest = mk("div");
+      d.delivered.slice(8).forEach((x) => add(x, rest));
+      c.appendChild(detail("ועוד " + (d.delivered.length - 8), rest));
+    }
+    s.appendChild(c); edRoot.appendChild(s);
+  }
+
   // 03/10/2026 (חוזה §8): כדאי/לא-כדאי. בסוף-שבוע מ-weekend_dodont (מוצג לפני המייל), בחול מ-doList/dontList.
   const addDoDont = () => {
     const src = WE ? (d.weekend_dodont || {}) : d;
