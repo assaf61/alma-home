@@ -230,6 +230,18 @@ function gigCard(g) {
   r.appendChild(what); c.appendChild(r);
   return c;
 }
+function venueCard(v) {
+  const c = mk("div", "card gig venue");
+  c.appendChild(mk("div", "gig-title", v.name + (v.city ? " · " + v.city : "") + (v.area === "far" ? " · רחוק" : "")));
+  if (v.music || v.kind) c.appendChild(mk("div", "muted", [v.kind, v.music].filter(Boolean).join(" · ")));
+  c.appendChild(mk("div", "muted", v.regular ? v.regular : "אין ערב קבוע ידוע · הלוח בדף שלהם"));
+  if (v.link && /^https?:\/\//i.test(v.link)) {
+    const a = mk("a", "gig-link", "לדף המקום ←");
+    a.href = v.link; a.target = "_blank"; a.rel = "noopener";
+    c.appendChild(a);
+  }
+  return c;
+}
 function gigSpeech(g) {
   const [, m, dd] = String(g.date).split("-");
   const when = `יום ${g.weekday || ""}, ${Number(dd)} ב${HE_MONTH[Number(m) - 1] || ""}` + (g.time ? `, בשעה ${g.time}` : "");
@@ -279,6 +291,16 @@ function renderGigs(app, { token, demo }) {
       const fr = mk("div");
       far.forEach((g) => fr.appendChild(gigCard(g)));
       s.appendChild(detail(`רחוק · תל אביב (${far.length})`, fr));
+    }
+    // ברים, פאבים ומועדונים (הכרעת אסף 15/10): רבים מפרסמים רק ברשתות, אז כאן הם רשימה -
+    // הערב הקבוע אם ידוע, וקישור לדף שלהם. הלוח עצמו נבדק בלחיצה.
+    const venues = (data.venues || []).filter((v) => v && v.name);
+    if (venues.length) {
+      const vr = mk("div");
+      venues.forEach((v) => vr.appendChild(venueCard(v)));
+      const chk = venues.map((v) => v.checked || "").sort().pop();
+      if (chk) { const [, m, dd] = chk.split("-"); vr.appendChild(mk("p", "hint", `הרשימה נבדקה ${dd}/${m} · ערב קבוע ממקור ישן מסומן כך`)); }
+      s.appendChild(detail(`ברים ומועדונים · ערבים קבועים (${venues.length})`, vr));
     }
     const foot = mk("div", "gig-foot");
     if (near.length || far.length) {
