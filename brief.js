@@ -285,7 +285,8 @@ function renderGigs(app, { token, demo }) {
     if (near.length > GIGS_OPEN) {
       const rest = mk("div");
       near.slice(GIGS_OPEN).forEach((g) => rest.appendChild(gigCard(g)));
-      s.appendChild(detail(`עוד ${near.length - GIGS_OPEN} הופעות באזור`, rest));
+      const more = near.length - GIGS_OPEN;
+      s.appendChild(detail(more === 1 ? "עוד הופעה אחת באזור" : `עוד ${more} הופעות באזור`, rest));
     }
     if (far.length) {
       const fr = mk("div");
