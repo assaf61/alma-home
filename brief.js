@@ -222,7 +222,7 @@ function gigCard(g) {
   const line = [where, g.price].filter(Boolean).join(" · ");
   if (line) what.appendChild(mk("div", "muted", line));
   if (g.far_reason) what.appendChild(mk("div", "muted", g.far_reason));
-  if (g.url) {
+  if (g.url && /^https?:\/\//i.test(g.url)) {   // רק קישור רשת; לעולם לא javascript: מתוך הנתונים
     const a = mk("a", "gig-link", "לעמוד ההופעה ←");
     a.href = g.url; a.target = "_blank"; a.rel = "noopener";
     what.appendChild(a);
