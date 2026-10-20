@@ -643,6 +643,7 @@ img, audio, video, iframe, svg { max-width: 100%; }
 .gig-title { color: var(--txt-x); font-weight: 500; margin-bottom: 2px; }
 .gig-link { display: inline-block; margin-top: 6px; font-size: .85rem; font-weight: 500; color: var(--acc-d); text-decoration: none; padding: 4px 0; }
 .gig-link:hover { text-decoration: underline; }
+.gig-links { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .gig-foot { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 4px; }
 .gig-foot .hint { margin-top: 0; }
 .sec-gigs details > summary { cursor: pointer; color: var(--acc-d); font-size: .9rem; padding: 8px 0; }

@@ -235,11 +235,19 @@ function venueCard(v) {
   c.appendChild(mk("div", "gig-title", v.name + (v.city ? " · " + v.city : "") + (v.area === "far" ? " · רחוק" : "")));
   if (v.music || v.kind) c.appendChild(mk("div", "muted", [v.kind, v.music].filter(Boolean).join(" · ")));
   c.appendChild(mk("div", "muted", v.regular ? v.regular : "אין ערב קבוע ידוע · הלוח בדף שלהם"));
-  if (v.link && /^https?:\/\//i.test(v.link)) {
-    const a = mk("a", "gig-link", "לדף המקום ←");
-    a.href = v.link; a.target = "_blank"; a.rel = "noopener";
-    c.appendChild(a);
-  }
+  // 20/10 (הערת אסף 17/10): מפה לבד לא אומרת אם יש הופעה. קישור ראשון = איפה שהם מפרסמים את הלוח,
+  // קישור שני = מפה, כי זה מה שצריך כשיוצאים.
+  const LBL = { schedule: "לוח ההופעות ←", social: "הדף שלהם, שם הלוח ←", search: "חיפוש הופעות ←" };
+  const links = mk("div", "gig-links");
+  const add = (href, label) => {
+    if (!href || !/^https?:\/\//i.test(href)) return;
+    const a = mk("a", "gig-link", label);
+    a.href = href; a.target = "_blank"; a.rel = "noopener";
+    links.appendChild(a);
+  };
+  add(v.link, LBL[v.link_kind] || "לדף המקום ←");
+  if (v.map && v.map !== v.link) add(v.map, "מפה ←");
+  if (links.childNodes.length) c.appendChild(links);
   return c;
 }
 function gigSpeech(g) {
@@ -546,9 +554,6 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
     if (s.childNodes.length > 1) app.appendChild(s);
   }
 
-  // --- הופעות בלוז וג'אז (15/10/2026): מתחת לקופסאות, בחול ובסוף-שבוע, לא מתקפלת עם המהדורה.
-  renderGigs(app, { token, demo });
-
   // --- מהדורת הבוקר: אחרי שנקראה היא מתקפלת לתחתית כ"מהדורת היום".
   // בסוף-שבוע אין קיפול למהדורה (חוזה §5).
   const edRoot = alreadyRead && !WE ? mk("div") : app;
@@ -768,6 +773,9 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       det.appendChild(secEl);
     });
   }
+  // --- הופעות בלוז וג'אז (15/10/2026; 20/10 לבקשת אסף: בתחתית, לפני מדדי-המכונה, "לא כל כך גבוה").
+  // נקרא אחרי לולאת הקיפול, ולכן נשאר פתוח.
+  renderGigs(app, { token, demo });
   app.appendChild(mk("p", "disc", "פחות, אבל טוב יותר"));
   // תיקון לשלב 1 (שלב 2, §6.3 [פ18]): בסוף-שבוע מקטע "שאלות אליך" (exceptional בלבד) יושב במקום שבו עמד
   // "המשך מכאן", אחרי כל הבריף, ו"מדדי-המכונה" (מ-app.js) מעוגן אחריו. בחול המקטע במקומו למעלה.
