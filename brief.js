@@ -311,6 +311,17 @@ function renderGigs(app, { token, demo }) {
       if (chk) { const [, m, dd] = chk.split("-"); vr.appendChild(mk("p", "hint", `הרשימה נבדקה ${dd}/${m} · ערב קבוע ממקור ישן מסומן כך`)); }
       s.appendChild(detail(`ברים ומועדונים · ערבים קבועים (${venues.length})`, vr));
     }
+    // 22/10/2026: מה שהסורק לא הכניס (errors) נראה כאן, כי זה המשטח שאסף רואה. צילום-לוח שלא נקרא
+    // ומקום שלא נבדק - כלשונם; תקלת מקור או מודל - שורה אחת עם מספר, בלי שמות טכניים. לא בהקראה.
+    const errs = (data.errors || []).filter((e) => typeof e === "string" && e.trim());
+    if (errs.length) {
+      const mine = errs.filter((e) => e.startsWith("צילום ") || e.startsWith("מקום שלא נבדק"));
+      const tech = errs.length - mine.length;
+      const ul = mk("ul");
+      mine.forEach((e) => ul.appendChild(mk("li", null, e)));
+      if (tech) ul.appendChild(mk("li", null, (tech === 1 ? "תקלה אחת" : `${tech} תקלות`) + " בסריקה האחרונה, ייתכן שחסרות הופעות"));
+      s.appendChild(detail(`לא נכנס לקופסה (${ul.childNodes.length})`, ul));
+    }
     const foot = mk("div", "gig-foot");
     if (near.length || far.length) {
       const tts = mk("button", "iconbtn", "🔊 הקרא לי"); tts.type = "button";
