@@ -87,7 +87,9 @@ function refreshNarrative(statusCb) {
       try { d = await loadBriefData(token); } catch { /* keep polling */ }
       if (d && d.generated_at && d.generated_at !== before) {
         clearInterval(timer);
-        statusCb("רוענן ✓", true);
+        // 25/10/2026 (ספח 9 של שלב 1): generated_at זז גם כשרק הבנייה הקלה הצליחה. אותו סימון כמו חותמת-הגוף בבריף.
+        const partial = (d.display_stale === true || d.display_stale === false) ? d.display_stale === true : d.body_stale === true;
+        statusCb(partial ? "⚠ רוענן חלקית · הנתונים חדשים, הגוף לא נבנה מחדש" : "רוענן ✓", true);
         renderHome();
       }
     }, 15000);

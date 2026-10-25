@@ -9,7 +9,7 @@ import { CONFIG } from "./config.js";
 import { getDrivePathText, getDrivePathBlob } from "./graph.js";
 import { handleButton, validHandle, renderHomeQuestions } from "./answer.js";
 import { submitAnswer, cardId } from "./counter.js";
-import { speak } from "./ui.js";
+import { speak, micButton } from "./ui.js";
 
 const LOGO = "./alma-enso.jpg";
 
@@ -643,7 +643,12 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   if (d.delivered && d.delivered.length) {
     const s = sec("הוכן לך · " + d.delivered.length);
     const c = mk("div", "card");
-    const add = (x, into) => { const b = mk("div", "dtxt"); mdInto(b, x.answer || ""); into.appendChild(detail(x.title || x.id, b)); };
+    // 25/10/2026: כל פריט מקבל שורת-תגובה, והצעה גם "כן, להפעיל" (deliveredReply). הצעה מסומנת כבר בכותרת המקופלת.
+    const add = (x, into) => {
+      const b = mk("div", "dtxt"); mdInto(b, x.answer || "");
+      const box = mk("div"); box.appendChild(b); box.appendChild(deliveredReply(x, { token, demo }));
+      into.appendChild(detail((x.title || x.id) + (deliveredOffer(x.answer) ? " · ממתין לתשובתך" : ""), box));
+    };
     d.delivered.slice(0, 8).forEach((x) => add(x, c));
     if (d.delivered.length > 8) {
       const rest = mk("div");
@@ -827,6 +832,57 @@ function nextStepLine(o, ctx) {
   });
   box.appendChild(ta); box.appendChild(send);
   acts.appendChild(rb);
+  wrap.appendChild(acts); wrap.appendChild(box); wrap.appendChild(done);
+  return wrap;
+}
+
+// 25/10/2026 (אסף, חוט 2026-10-25-0855-photo-48sy): "הוכן לך" הציג תשובה שנגמרת ב"האם להפעיל?" בלי שום
+// דרך לענות מכאן, ואסף נאלץ לצלם את הבריף ולשלוח אותו כחוט. עכשיו כל פריט מקבל תגובה, והצעה מקבלת גם
+// "כן, להפעיל". שניהם נוסעים בנתיב-הטלפון הקיים: decide-*.json → הקופה → answer-gate → actions.md
+// owner:machine, והמבצע מטפל (עבודה שדורשת עיניים עולה ללוח עם "העתק לסשן חדש"). "כן" לבד הוא בחירה
+// נקייה שהשער בולע בלי שורת-פעולה, ולכן ההערה היא משפט מלא עם שם קובץ-החוט.
+const DLV_SENT_KEY = "brief-delivered-sent";
+const OFFER_RE = /(?:להפעיל|לבצע|לבנות|להכין|לקבוע|לפתוח|לשלוח|אשלח|אפעיל|אבצע|אבנה|אכין|אפתח)[^.?!\n]*\?\s*$/;
+export function deliveredOffer(answer) { return OFFER_RE.test(String(answer || "").trim()); }
+
+function deliveredReply(x, ctx) {
+  const wrap = mk("div", "next-line dl-line");
+  const id = "dlv-" + String(x.id || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 40);
+  const ref = x.file ? " · חוט " + x.file : "";
+  const done = mk("span", "locked-tag nx-done");
+  const prev = readLS(DLV_SENT_KEY, {})[id];
+  if (prev) { done.textContent = "נשלח ✓ · " + prev.label; wrap.appendChild(done); return wrap; }
+  done.hidden = true;
+  const acts = mk("div", "nx-acts");
+  const box = mk("div", "nx-box qc-free"); box.hidden = true;
+  const ta = mk("textarea", "ta-remark ta-grow"); ta.rows = 1; ta.placeholder = "תגובה, הוראה או שאלה…";
+  const grow = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+  ta.addEventListener("input", grow);
+  const btns = [];
+  async function send(note, label) {
+    btns.forEach((b) => { b.disabled = true; });
+    const res = ctx.demo ? { ok: true } : await submitAnswer({ id, title: x.title || x.id, origin: "delivered" }, { kind: "text", note: note + ref }, ctx);
+    if (!res.ok) { btns.forEach((b) => { b.disabled = false; }); done.hidden = false; done.textContent = "השליחה נכשלה · " + (res.error || ""); return; }
+    if (!ctx.demo) {
+      const m = readLS(DLV_SENT_KEY, {}), cut = Date.now() - 14 * 864e5;
+      Object.keys(m).forEach((k) => { if (!(Date.parse(m[k].at) > cut)) delete m[k]; });
+      m[id] = { label, at: new Date().toISOString() }; writeLS(DLV_SENT_KEY, m);
+    }
+    acts.remove(); box.remove();
+    done.hidden = false; done.textContent = (ctx.demo ? "מצב הדגמה · " : "") + "נשלח ✓ · " + label;
+  }
+  if (deliveredOffer(x.answer)) {
+    const yes = mk("button", "commit dl-yes", "כן, להפעיל"); yes.type = "button";
+    yes.addEventListener("click", () => send("כן, להפעיל את מה שהוצע בתשובה", "נכנס לנתיב-הפעולות"));
+    btns.push(yes); wrap.appendChild(yes);
+  }
+  const rb = mk("button", "btn-ghost nx-reply", "💬 תגובה"); rb.type = "button";
+  rb.addEventListener("click", () => { box.hidden = !box.hidden; if (!box.hidden) { grow(); ta.focus(); } });
+  acts.appendChild(rb);
+  const sb = mk("button", "iconbtn qc-send", "שלח"); sb.type = "button";
+  sb.addEventListener("click", () => { const t = ta.value.trim(); if (t) send(t, "התגובה נכנסה לנתיב-הפעולות"); });
+  btns.push(rb, sb);
+  box.appendChild(ta); box.appendChild(micButton(ta)); box.appendChild(sb);
   wrap.appendChild(acts); wrap.appendChild(box); wrap.appendChild(done);
   return wrap;
 }
