@@ -79,6 +79,7 @@ section { margin-top: 26px; }
   border-radius: var(--r-l); padding: 15px 17px; box-shadow: var(--sh-s); margin-bottom: 11px;
 }
 .card.empty { text-align: center; color: var(--txt-m); padding: 28px 18px; }
+.card.past { opacity: .55; }   /* 25/10/2026 (ע6): אירוע-יומן שזמן-הסיום שלו עבר */
 .row { display: flex; gap: 13px; align-items: baseline; }
 .row .when { flex: 0 0 92px; font-weight: 600; color: var(--acc-d); font-size: .92rem; }
 .row .what { flex: 1; }

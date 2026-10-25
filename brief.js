@@ -142,6 +142,39 @@ function fmtStamp(iso) {
   } catch { return String(iso); }
 }
 
+// ---------- 25/10/2026 (ע6, כרטיס 7 בקובץ-הידע של 03/10): valid_on בזמן ההצגה ----------
+// הבונה מטביע valid_on על אירועי-היומן, על ההתראות לימים הבאים ועל פריטי-גוף עם מילת-זמן יחסית. בריף
+// שנבנה הבוקר ונפתח מחר (הבנייה נכשלה, או לפני 05:30) אמר עד היום "היום" על אתמול. כאן מסננים מול שעון
+// ירושלים: פריט שתוקפו עבר יורד, ומחרוזות doList/dontList נבדקות באותו רגקס של הבונה (REL_TIME_RE) מול
+// body_date. המונה _expired מוצג בחותמת, כדי שחסר לא ייראה כמו ריק.
+const REL_RE = /(^|[^֐-׿])(היום|מחר|מחרתיים|הערב|הבוקר|הלילה|אתמול|השבוע)(?![֐-׿])|ב?עוד (\d+|כמה) (דקות|שעות)|תוך שעה/;
+function jerToday(now) { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(now || new Date()); }
+function jerHM(now) { return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now || new Date()); }
+
+export function applyValidOn(d, now) {
+  if (!d) return d;
+  const today = jerToday(now);
+  const out = { ...d };
+  let n = 0;
+  const live = (it) => !(it && typeof it === "object" && it.valid_on && it.valid_on < today);
+  ["today", "upcoming", "fronts", "spotlight", "cards"].forEach((k) => {
+    if (!Array.isArray(d[k])) return;
+    out[k] = d[k].filter(live);
+    n += d[k].length - out[k].length;
+  });
+  if (Array.isArray(d.today) && d.today.length && !out.today.length) out._todayExpired = (d.today.find((t) => t && t.valid_on) || {}).valid_on || "אתמול";
+  const bodyDay = d.body_date || String(d.body_built_at || "").slice(0, 10);
+  if (bodyDay && bodyDay < today) {
+    ["doList", "dontList"].forEach((k) => {
+      if (!Array.isArray(d[k])) return;
+      out[k] = d[k].filter((s) => !REL_RE.test(String(s)));
+      n += d[k].length - out[k].length;
+    });
+  }
+  if (n) out._expired = n;
+  return out;
+}
+
 // Fetch the live brief JSON from OneDrive. Returns parsed data or null (no brief yet).
 export async function loadBriefData(token) {
   const txt = await getDrivePathText(token, CONFIG.briefPath);
@@ -336,6 +369,7 @@ function renderGigs(app, { token, demo }) {
 }
 
 export function renderBrief(container, d, { demo = false, onGotoThreads, onRefreshNarrative, live = null, token = null, qs = null } = {}) {
+  d = applyValidOn(d);
   container.innerHTML = "";
   const app = container;
   // 31/07 (מסך רחב, עוגן-מחלקה בלבד): שום כלל CSS לא נוגע ב-.brief-surface מתחת
@@ -499,6 +533,8 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
       const stamp = mk("div", "brief-stamp" + (stale ? " stale" : ""));
       stamp.appendChild(mk("span", "bs-when", (stale ? "⚠ הגוף לא רוענן · " : "עודכן · ") + (builtAt ? fmtStamp(builtAt) : "לא ידוע")));
       if (stale) stamp.appendChild(mk("span", "bs-msg", "אמור 'בוקר טוב' לבריף מעודכן."));
+      // 25/10/2026 (ע6): מה ש-applyValidOn הסתיר נאמר כאן, כדי שחסר לא ייראה כמו ריק.
+      if (d._expired) stamp.appendChild(mk("span", "bs-msg", "הוסתרו " + d._expired + " פריטים שתוקפם עבר"));
       app.appendChild(stamp);
     }
   }
@@ -525,14 +561,22 @@ export function renderBrief(container, d, { demo = false, onGotoThreads, onRefre
   // 03/10/2026 (חוזה §11): פס תקציב-ה-API (budget_warn/credit_low) הוסר מהתצוגה - נתיב ה-API מושבת, המכונה על Max. השדות נשארים בנתונים.
 
   // today
+  // 25/10/2026 (ע6): אירוע שזמן-הסיום שלו עבר (שעון ירושלים, בזמן ההצגה) מסומן "הסתיים". יומן של יום שעבר
+  // מוסתר כולו ב-applyValidOn, ובמקומו שורה אחת שאומרת זאת.
   if (d.today && d.today.length) {
     let s = sec("היום");
+    const nowHM = jerHM();
     d.today.forEach((t) => {
-      const c = mk("div", "card"); const r = mk("div", "row"); const w = mk("div", "when");
+      const past = !!(t.end && isTime(t.end) && t.valid_on === jerToday() && t.end <= nowHM);
+      const c = mk("div", "card" + (past ? " past" : "")); const r = mk("div", "row"); const w = mk("div", "when");
       w.appendChild(isTime(t.when) ? mk("span", "ltr", t.when) : document.createTextNode(t.when));
-      r.appendChild(w); r.appendChild(mk("div", "what", t.what)); c.appendChild(r); s.appendChild(c);
+      r.appendChild(w); r.appendChild(mk("div", "what", t.what + (past ? " · הסתיים" : ""))); c.appendChild(r); s.appendChild(c);
     });
     app.appendChild(s);
+  } else if (d._todayExpired) {
+    const s = sec("היום");
+    const c = mk("div", "card"); c.appendChild(mk("p", "muted", "היומן של " + d._todayExpired + " הוסתר כי היום עבר · הבריף של היום עוד לא נבנה"));
+    s.appendChild(c); app.appendChild(s);
   }
 
   // upcoming (heads-up: tomorrow + week ahead; all-day items like birthdays/fasts get advance notice)

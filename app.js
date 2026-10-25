@@ -330,7 +330,8 @@ async function renderHomeBrief(c) {
   }
   loginGate(c, async () => {
     c.innerHTML = "<p class='muted pad'>טוען הדגמה…</p>";
-    try { const qs = await loadDemoSources().catch(() => null); renderBrief(c, await loadSampleData(), { demo: true, onGotoThreads: gotoThreads, qs, live: qs ? { questions: qs.counts.questions, actions: qs.counts.actions, threads: null } : null }); const sample = await loadSampleData(); const mm = renderMachineMetrics(sample); if (mm) c.appendChild(mm); }
+    // 25/10/2026 (ספח 10 של שלב 1): קובץ-הדוגמה נטען פעם אחת ומשרת גם את הבריף וגם את מדדי-המכונה.
+    try { const [sample, qs] = await Promise.all([loadSampleData(), loadDemoSources().catch(() => null)]); renderBrief(c, sample, { demo: true, onGotoThreads: gotoThreads, qs, live: qs ? { questions: qs.counts.questions, actions: qs.counts.actions, threads: null } : null }); const mm = renderMachineMetrics(sample); if (mm) c.appendChild(mm); }
     catch { c.innerHTML = "<p class='err-msg pad'>הדגמה לא זמינה</p>"; }
   });
 }
