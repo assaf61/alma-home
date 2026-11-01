@@ -479,6 +479,10 @@ async function main() {
         title: sp.get("title") || "", text: sp.get("text") || "", url: sp.get("url") || "",
       }));
       history.replaceState(null, "", location.pathname + "#capture");
+    } else if (sp.has("share")) {
+      // 01/11/2026: the POST share_target (images/audio) - sw.js stored it in IndexedDB
+      // and redirected here; capture.js takes it from there.
+      history.replaceState(null, "", location.pathname + "#capture");
     }
   } catch { /* share is best-effort - never block boot */ }
 

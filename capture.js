@@ -10,6 +10,7 @@ import { uploadCapture, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast, withMic } from "./ui.js";
 import { domains } from "./domains.js";
+import { takeShares } from "./queue.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -379,17 +380,32 @@ async function startRec() {
 // p393 (21/07): לכידת-שיתוף מאנדרואיד. אינסטגרם/דפדפן משתפים אל ה-PWA (share_target
 // במניפסט), app.js מפקיד את המטען ב-sessionStorage ומנתב ללוכד - וכאן הוא נכנס
 // למעטפה הפתוחה. אינסטגרם שמה את ה-URL בשדה text, לא ב-url - מכסים.
+function parseShare(s) {
+  const inText = ((s.text || "") + " " + (s.title || "")).match(URL_ANY_RE);
+  const url = s.url || (inText && inText[0]) || "";
+  const note = [s.title, s.text].filter(Boolean).join("\n").replace(url, "").trim();
+  return { url, note };
+}
 function consumePendingShare() {
   let raw = null;
   try { raw = sessionStorage.getItem("pending-share"); sessionStorage.removeItem("pending-share"); } catch {}
   if (!raw) return null;
-  try {
-    const s = JSON.parse(raw);
-    const inText = ((s.text || "") + " " + (s.title || "")).match(URL_ANY_RE);
-    const url = s.url || (inText && inText[0]) || "";
-    const note = [s.title, s.text].filter(Boolean).join("\n").replace(url, "").trim();
-    return { url, note };
-  } catch { return null; }
+  try { return parseShare(JSON.parse(raw)); } catch { return null; }
+}
+
+// 01/11/2026 (oq-3c5a92ec8d18): the share_target is now POST with files, so a
+// shared image or voice note reaches this tab too. sw.js keeps the share in
+// IndexedDB; here text/URL read as above, and every file joins the same envelope
+// as a part. The GET path above stays for a phone still on the old manifest.
+async function receiveShares() {
+  const shares = await takeShares().catch(() => []);
+  shares.forEach((s) => {
+    const { url, note } = parseShare(s);
+    const files = s.files || [];
+    files.forEach((f) => ensureOpen().media.push({ blob: f.blob, type: f.type, name: f.name || "part", ext: extFromMime(f.type, f.name || "") }));
+    const text = [url, note].filter(Boolean).join("\n");
+    if (text || files.length) openCard({ text, noFocus: files.length > 0 });
+  });
 }
 
 export function loadCapture(token, container, opts = {}) {
@@ -439,6 +455,9 @@ export function loadCapture(token, container, opts = {}) {
   container.appendChild(mk("p", "hint", demoMode
     ? "מצב הדגמה - הלכידה לא נשלחת ל-OneDrive."
     : "לכידה = מעטפה פתוחה: התחל מכל כיוון, הוסף פנימה, ושגר פעם אחת. הכל נשמר ל-OneDrive ועובר תמלול ומיון אוטומטי."));
+
+  // a demo envelope is never sent, so a waiting share stays in IndexedDB for the real one
+  if (!demoMode) receiveShares();
 }
 
 export function loadCaptureDemo(container) { loadCapture(null, container, { demo: true }); }
