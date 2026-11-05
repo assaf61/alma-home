@@ -4,7 +4,8 @@
 // live per session and rendered in memory. A shared image/audio waits in
 // IndexedDB only until the capture tab takes it into the open envelope.
 
-const CACHE = "ah-shell-v54"; // 01/11/2026: share_target is POST with files - images and audio join the open envelope
+const CACHE = "ah-shell-v55"; // 05/11/2026: engine.js drops the unused machine-reach block
+// v54 (01/11/2026): share_target is POST with files - images and audio join the open envelope
 // v53 (25/10/2026): valid_on at display time, past events, demo loads once with phase-1 fields
 // v52 (25/10/2026): "הוכן לך" gets a reply line and "כן, להפעיל"; partial-refresh label
 // v51 (22/10/2026): gigs box shows what the scanner left out (errors)

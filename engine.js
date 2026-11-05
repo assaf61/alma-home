@@ -1,8 +1,5 @@
 // חדר המכונות בכיס (19/07): הלוח וההכרעות עוברים תמיד ב-Graph (graph.js), באותו
-// צינור מאובטח שהלכידה משתמשת בו - בלי שום חשיפת-רשת של השרת המקומי. "המכונה
-// בהישג יד" (v1, שהיה גוף renderEngine ב-app.js) עבר לכאן כרכיב עצמאי בראש העמוד:
-// הוא בודק רשת מקומית (127.0.0.1:8861) ולא תלוי בטוקן - נשאר fetch ישיר ולא דרך
-// graph.js בכוונה, כי זה בכלל לא Graph/OneDrive, זו בדיקת-נוכחות מול המכונה עצמה.
+// צינור מאובטח שהלכידה משתמשת בו - בלי שום חשיפת-רשת של השרת המקומי.
 import { getDrivePathText, putDrivePathText } from "./graph.js";
 import { CONFIG } from "./config.js";
 import { toast, micButton } from "./ui.js";
@@ -40,65 +37,6 @@ function writeJSON(key, val) {
 function clearDraft(id) {
   const m = readJSON(DRAFT_KEY, {});
   if (id in m) { delete m[id]; writeJSON(DRAFT_KEY, m); }
-}
-
-// ---------- "המכונה בהישג יד" (v1, הועבר משם ללא שינוי התנהגות) ----------
-const ENGINE_LOCAL = "http://127.0.0.1:8861";
-export const ENGINE_PIPE = "http://almapm.tailfd019a.ts.net";
-// בסיס לפתיחת החדר-החי: localhost כשעל המכונה, הצינור אחרת. brief.js (urgent-treat)
-// מייבא את זה דינמית. משטח-הקידום עצמו לא צריך אותו - הוא קורא מהענן.
-export async function engineBase() {
-  try {
-    const c = new AbortController(); const t = setTimeout(() => c.abort(), 1200);
-    const r = await fetch(ENGINE_LOCAL + "/hub-data", { signal: c.signal, cache: "no-store" });
-    clearTimeout(t); if (r.ok) return ENGINE_LOCAL;
-  } catch { /* not on the machine */ }
-  return ENGINE_PIPE;
-}
-// קישור אמיתי במקום window.open: ניווט טבעי לעולם לא נחסם בדפדפן נייד, וכשהיעד
-// אינו נגיש הדפדפן מציג שגיאה משלו במקום טאב ריק ושקט. זה השורש של "דף מת" (28/07).
-export function roomLink(base, label) {
-  const a = mk("a", "btn-primary");
-  a.textContent = label;
-  a.href = base + "/hub";
-  a.target = "_blank"; a.rel = "noopener";
-  a.style.display = "inline-block"; a.style.textDecoration = "none";
-  return a;
-}
-
-export async function renderLocalReach(container) {
-  container.innerHTML = "";
-  const box = mk("div", "card");
-  const h = mk("div", "shead");
-  h.appendChild(mk("span", "over", "המכונה בהישג יד"));
-  h.appendChild(mk("span", "line"));
-  box.appendChild(h);
-  const status = mk("p", "muted", "בודק אם המכונה בהישג יד…");
-  box.appendChild(status);
-  container.appendChild(box);
-
-  let up = false;
-  try {
-    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 1500);
-    const r = await fetch(ENGINE_LOCAL + "/hub-data", { signal: ctrl.signal, cache: "no-store" });
-    clearTimeout(t); up = r.ok;
-  } catch { up = false; }
-
-  status.remove();
-  if (up) {
-    const p = mk("p", "muted"); p.textContent = "המכונה בהישג יד. הדלפק, הלוח וההכרעות הנעולות - בלחיצה אחת.";
-    box.appendChild(p); box.appendChild(roomLink(ENGINE_LOCAL, "פתח את חדר המכונות"));
-  } else {
-    // 28/07: הענף הזה היה מבוי סתום - הודיע "אין קו ישיר" ולא נתן שום דלת, כי הבדיקה
-    // נעשית רק מול 127.0.0.1 שלא קיים בטלפון. הצינור הפרטי כן פתוח, ואי אפשר לבדוק
-    // אותו מכאן (בית עלמא ב-https, הצינור ב-http, והדפדפן חוסם בדיקה כזו) - אז במקום
-    // לנחש, נותנים קישור אמיתי ואומרים במפורש מה הוא דורש.
-    const p1 = mk("p", "muted");
-    p1.textContent = "חדר-המכונות רץ על המכונה בבית וסגור לרשת. מהמכשיר הזה אין קו ישיר, אבל הצינור הפרטי פתוח:";
-    box.appendChild(p1);
-    box.appendChild(roomLink(ENGINE_PIPE, "פתח דרך הצינור הפרטי"));
-    box.appendChild(mk("p", "hint", ENGINE_PIPE.replace(/^https?:\/\//, "") + " · דורש שה-Tailscale בטלפון יהיה מחובר"));
-  }
 }
 
 // ---------- לוח-הענן + הכרעות ----------
